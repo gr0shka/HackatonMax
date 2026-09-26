@@ -72,6 +72,13 @@ func TestRouter_HealthAndSwagger(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "ok")
 
+	// 1b. API v1 Health check
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "ok")
+
 	// 2. Swagger UI index
 	req = httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil)
 	w = httptest.NewRecorder()
@@ -84,5 +91,6 @@ func TestRouter_HealthAndSwagger(t *testing.T) {
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), "Team Route Optimizer API")
+	assert.Contains(t, w.Body.String(), "API Оптимизации Туристических Маршрутов")
+	assert.Contains(t, w.Body.String(), "1.0.0")
 }

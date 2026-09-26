@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -100,7 +101,7 @@ type twoGisResponse struct {
 // FindPlaces executes a search request against 2GIS Places API or returns cached results.
 func (c *TwoGisClient) FindPlaces(ctx context.Context, lat, lon float64, radiusMeters float64, query string, limit int) ([]entity.Place, error) {
 	if limit <= 0 {
-		limit = 20
+		limit = 10
 	}
 
 	cacheKey := fmt.Sprintf("%.4f:%.4f:%.0f:%s:%d", lat, lon, radiusMeters, query, limit)
@@ -119,11 +120,23 @@ func (c *TwoGisClient) FindPlaces(ctx context.Context, lat, lon float64, radiusM
 	// 2GIS catalog API format: location=lon,lat
 	params.Set("location", fmt.Sprintf("%.6f,%.6f", lon, lat))
 	params.Set("fields", "items.point,items.rubrics,items.reviews")
-	params.Set("page_size", strconv.Itoa(limit))
 
-	if query != "" {
-		params.Set("q", query)
+	// 2GIS Places API page_size must be between 1 and 10 (specifically enforced by demo key)
+	pageSize := limit
+	if pageSize <= 0 {
+		pageSize = 10
+	} else if pageSize > 10 {
+		pageSize = 10
 	}
+	params.Set("page_size", strconv.Itoa(pageSize))
+
+	// Search query q is required for /3.0/items circle search
+	searchQuery := query
+	if searchQuery == "" {
+		searchQuery = "достопримечательности"
+	}
+	params.Set("q", searchQuery)
+
 	if radiusMeters > 0 {
 		params.Set("radius", strconv.Itoa(int(radiusMeters)))
 	}
@@ -151,6 +164,7 @@ func (c *TwoGisClient) FindPlaces(ctx context.Context, lat, lon float64, radiusM
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		slog.Error("2GIS API returned error", slog.Int("status", resp.StatusCode), slog.String("body", string(body)))
 		return nil, fmt.Errorf("%w: 2gis returned status %d, body: %s", ErrUnavailable, resp.StatusCode, string(body))
 	}
 
@@ -163,7 +177,12 @@ func (c *TwoGisClient) FindPlaces(ctx context.Context, lat, lon float64, radiusM
 		return nil, ErrRateLimited
 	}
 	if data.Meta.Code != 200 && data.Meta.Code != 0 {
-		return nil, fmt.Errorf("%w: 2gis meta code %d", ErrUnavailable, data.Meta.Code)
+		slog.Error("2GIS API returned error", slog.Int("status", resp.StatusCode), slog.Int("meta_code", data.Meta.Code), slog.String("body", string(body)))
+		errMsg := ""
+		if data.Meta.Error != nil {
+			errMsg = fmt.Sprintf(": %s (%s)", data.Meta.Error.Message, data.Meta.Error.Type)
+		}
+		return nil, fmt.Errorf("%w: 2gis meta code %d%s, body: %s", ErrUnavailable, data.Meta.Code, errMsg, string(body))
 	}
 
 	places := make([]entity.Place, 0, len(data.Result.Items))

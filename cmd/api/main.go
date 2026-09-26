@@ -7,12 +7,12 @@ import (
 	"HackatonMax/internal/app"
 )
 
-// @title           Team Route Optimizer API
-// @version         1.0
-// @description     Backend-сервис оркестрации персонализированных пешеходных маршрутов
+// @title           API Оптимизации Туристических Маршрутов
+// @version         1.0.0
+// @description     Сервис построения персонализированных групповых пешеходных маршрутов с учетом пересечения интересов участников, бюджета времени, интеграцией геоданных (2GIS / OpenStreetMap) и пешеходного графа OSRM.
 // @termsOfService  http://swagger.io/terms/
 
-// @contact.name   API Support
+// @contact.name   Команда разработки маршрутов
 // @contact.email  support@example.com
 
 // @license.name  MIT

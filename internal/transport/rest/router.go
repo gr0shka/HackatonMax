@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -10,6 +11,7 @@ import (
 
 	_ "HackatonMax/docs"
 	v1 "HackatonMax/internal/transport/rest/v1"
+	"HackatonMax/internal/transport/rest/v1/dto"
 )
 
 // RouterConfig holds options for HTTP routing.
@@ -43,17 +45,15 @@ func NewRouter(v1Handler *v1.Handler, cfg RouterConfig) *chi.Mux {
 	}))
 
 	// Health check endpoint
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
-	})
+	r.Get("/health", HealthCheck)
 
 	// Swagger UI
 	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
 	// API v1 routes
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Get("/health", HealthCheck)
+
 		r.Route("/users", func(r chi.Router) {
 			r.Post("/", v1Handler.CreateOrUpdateUser)
 			r.Get("/{id}", v1Handler.GetUser)
@@ -65,4 +65,18 @@ func NewRouter(v1Handler *v1.Handler, cfg RouterConfig) *chi.Mux {
 	})
 
 	return r
+}
+
+// HealthCheck godoc
+// @Summary      Проверка состояния сервиса
+// @Description  Проверка статуса сервиса и подключения к БД.
+// @Tags         system
+// @Produce      json
+// @Success      200  {object}  dto.HealthResponse "Сервис функционирует нормально"
+// @Router       /health [get]
+// @Router       /api/v1/health [get]
+func HealthCheck(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(dto.HealthResponse{Status: "ok"})
 }

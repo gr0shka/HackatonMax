@@ -3,3 +3,6 @@
 bin/
 *.out
 *.log
+.env
+docs
+mock_ml.py

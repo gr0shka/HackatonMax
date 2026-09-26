@@ -1,7 +1,15 @@
 package dto
 
-// ErrorResponse represents an API error response body.
+// ErrorResponse стандартная структура ответа с ошибкой.
 type ErrorResponse struct {
-	Error   string `json:"error" example:"invalid request payload"`
-	Details string `json:"details,omitempty" example:"start coordinates are outside valid bounds"`
+	// Error - краткое описание ошибки
+	Error string `json:"error" example:"Невалидные входные данные"`
+	// Details - детальное описание причины ошибки
+	Details string `json:"details,omitempty" example:"Координаты старта находятся за пределами допустимого диапазона"`
+}
+
+// HealthResponse статус доступности и работоспособности сервиса.
+type HealthResponse struct {
+	// Status - статус доступности сервиса (ok)
+	Status string `json:"status" example:"ok"`
 }

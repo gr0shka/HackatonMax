@@ -26,16 +26,21 @@ type RoutePoint struct {
 	DurationFromPrevMin    float64        `json:"duration_from_prev_min,omitempty"`
 }
 
-// GeoJSONGeometry represents GeoJSON LineString coordinates.
+// GeoJSONGeometry представляет геометрию GeoJSON (LineString с парами координат [lon, lat]).
 type GeoJSONGeometry struct {
-	Type        string       `json:"type"`        // "LineString"
-	Coordinates [][2]float64 `json:"coordinates"` // Array of [lon, lat] pairs
+	// Type - тип геометрии (всегда LineString для пешеходного трека)
+	Type string `json:"type" example:"LineString"`
+	// Coordinates - массив пар координат [долгота, широта] пешеходного трека
+	Coordinates [][2]float64 `json:"coordinates"`
 }
 
-// GeoJSONFeature represents a standard GeoJSON Feature object.
+// GeoJSONFeature представляет стандартный объект GeoJSON Feature для отрисовки маршрута на карте.
 type GeoJSONFeature struct {
-	Type       string                 `json:"type"` // "Feature"
-	Geometry   *GeoJSONGeometry       `json:"geometry"`
+	// Type - тип объекта GeoJSON (всегда Feature)
+	Type string `json:"type" example:"Feature"`
+	// Geometry - геометрия пешеходной линии маршрута
+	Geometry *GeoJSONGeometry `json:"geometry"`
+	// Properties - свойства маршрута (id, match_score, match_reasons)
 	Properties map[string]interface{} `json:"properties"`
 }
 

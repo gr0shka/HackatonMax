@@ -13,15 +13,15 @@ import (
 )
 
 // GetUser godoc
-// @Summary      Get user profile
-// @Description  Retrieves profile information and interest weights for a user by UUID
+// @Summary      Получение профиля пользователя
+// @Description  Возвращает информацию о пользователе и сохраненных предпочтениях по его UUID.
 // @Tags         users
 // @Produce      json
-// @Param        id   path      string  true  "User UUID"
-// @Success      200  {object}  dto.UserResponse
-// @Failure      400  {object}  dto.ErrorResponse
-// @Failure      404  {object}  dto.ErrorResponse
-// @Failure      500  {object}  dto.ErrorResponse
+// @Param        id   path      string  true  "UUID пользователя" example(a949a4f7-5a00-4178-b740-4ce831159fbb)
+// @Success      200  {object}  dto.UserResponse "Профиль пользователя успешно найден"
+// @Failure      400  {object}  dto.ErrorResponse "Некорректный формат UUID"
+// @Failure      404  {object}  dto.ErrorResponse "Пользователь не найден"
+// @Failure      500  {object}  dto.ErrorResponse "Внутренняя ошибка сервера"
 // @Router       /api/v1/users/{id} [get]
 func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
@@ -52,15 +52,16 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateOrUpdateUser godoc
-// @Summary      Create or update user profile
-// @Description  Creates a new user profile or updates interests
+// @Summary      Создание профиля пользователя
+// @Description  Регистрирует участника группы с вектором интересов (coffee, art, parks, food, sightseeing, bar со значениями от 0.0 до 1.0).
 // @Tags         users
 // @Accept       json
 // @Produce      json
-// @Param        request body dto.CreateOrUpdateUserRequest true "User data"
-// @Success      200  {object}  dto.UserResponse
-// @Failure      400  {object}  dto.ErrorResponse
-// @Failure      500  {object}  dto.ErrorResponse
+// @Param        request body dto.CreateOrUpdateUserRequest true "Данные профиля пользователя"
+// @Success      200  {object}  dto.UserResponse "Профиль успешно создан или обновлен"
+// @Success      201  {object}  dto.UserResponse "Профиль успешно создан"
+// @Failure      400  {object}  dto.ErrorResponse "Ошибка валидации JSON или диапазонов интересов"
+// @Failure      500  {object}  dto.ErrorResponse "Внутренняя ошибка сервера"
 // @Router       /api/v1/users [post]
 func (h *Handler) CreateOrUpdateUser(w http.ResponseWriter, r *http.Request) {
 	var req dto.CreateOrUpdateUserRequest

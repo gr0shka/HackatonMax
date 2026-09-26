@@ -107,6 +107,24 @@ type Clients struct {
 }
 
 func newClients(cfg *config.Config, placeRepo service.PlaceRepository, logger *slog.Logger) Clients {
+	apiKey := cfg.TwoGIS.APIKey
+	prefix := ""
+	if len(apiKey) >= 4 {
+		prefix = apiKey[:4]
+	} else if len(apiKey) > 0 {
+		prefix = apiKey[:1]
+	}
+
+	logger.Info(fmt.Sprintf("2GIS API Key initialized: len=%d, prefix=%s***", len(apiKey), prefix),
+		slog.Int("key_len", len(apiKey)),
+		slog.Float64("rps", cfg.TwoGIS.RPS),
+		slog.String("base_url", cfg.TwoGIS.BaseURL),
+	)
+
+	if apiKey == "" || apiKey == "demo-key" {
+		logger.Warn("2GIS API key is set to default 'demo-key' or empty; requests to live 2GIS catalog may return 403 Forbidden")
+	}
+
 	twoGis := places.NewTwoGisClient(places.TwoGisConfig{
 		BaseURL:     cfg.TwoGIS.BaseURL,
 		APIKey:      cfg.TwoGIS.APIKey,

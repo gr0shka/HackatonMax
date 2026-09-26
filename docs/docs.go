@@ -11,7 +11,7 @@ const docTemplate = `{
         "title": "{{.Title}}",
         "termsOfService": "http://swagger.io/terms/",
         "contact": {
-            "name": "API Support",
+            "name": "Команда разработки маршрутов",
             "email": "support@example.com"
         },
         "license": {
@@ -23,9 +23,29 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/v1/health": {
+            "get": {
+                "description": "Проверка статуса сервиса и подключения к БД.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Проверка состояния сервиса",
+                "responses": {
+                    "200": {
+                        "description": "Сервис функционирует нормально",
+                        "schema": {
+                            "$ref": "#/definitions/dto.HealthResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/routes/build": {
             "post": {
-                "description": "Generates an optimized walking route with ordered stops, GeoJSON geometry, duration, and match reasons",
+                "description": "Принимает список идентификаторов участников, лимит времени в минутах, а также координаты старта и финиша. Сервис находит кандидатов, передает их в алгоритм ML-мэтчинга и строит непрерывный пешеходный трек OSRM с таймингом каждой остановки.",
                 "consumes": [
                     "application/json"
                 ],
@@ -35,10 +55,10 @@ const docTemplate = `{
                 "tags": [
                     "routes"
                 ],
-                "summary": "Build personalized group pedestrian route",
+                "summary": "Оптимизация и генерация группового маршрута",
                 "parameters": [
                     {
-                        "description": "Route parameters",
+                        "description": "Параметры генерации маршрута",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -49,25 +69,25 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Оптимизированный пешеходный маршрут успешно построен",
                         "schema": {
                             "$ref": "#/definitions/dto.BuildRouteResponse"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Невалидный JSON или некорректные координаты",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Не найдены кандидаты мест в заданной области или участник не найден",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Внутренняя ошибка сервиса",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -77,7 +97,7 @@ const docTemplate = `{
         },
         "/api/v1/users": {
             "post": {
-                "description": "Creates a new user profile or updates interests",
+                "description": "Регистрирует участника группы с вектором интересов (coffee, art, parks, food, sightseeing, bar со значениями от 0.0 до 1.0).",
                 "consumes": [
                     "application/json"
                 ],
@@ -87,10 +107,10 @@ const docTemplate = `{
                 "tags": [
                     "users"
                 ],
-                "summary": "Create or update user profile",
+                "summary": "Создание профиля пользователя",
                 "parameters": [
                     {
-                        "description": "User data",
+                        "description": "Данные профиля пользователя",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -101,19 +121,25 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Профиль успешно создан или обновлен",
+                        "schema": {
+                            "$ref": "#/definitions/dto.UserResponse"
+                        }
+                    },
+                    "201": {
+                        "description": "Профиль успешно создан",
                         "schema": {
                             "$ref": "#/definitions/dto.UserResponse"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Ошибка валидации JSON или диапазонов интересов",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Внутренняя ошибка сервера",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -123,18 +149,19 @@ const docTemplate = `{
         },
         "/api/v1/users/{id}": {
             "get": {
-                "description": "Retrieves profile information and interest weights for a user by UUID",
+                "description": "Возвращает информацию о пользователе и сохраненных предпочтениях по его UUID.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "users"
                 ],
-                "summary": "Get user profile",
+                "summary": "Получение профиля пользователя",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User UUID",
+                        "example": "a949a4f7-5a00-4178-b740-4ce831159fbb",
+                        "description": "UUID пользователя",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -142,27 +169,47 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Профиль пользователя успешно найден",
                         "schema": {
                             "$ref": "#/definitions/dto.UserResponse"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Некорректный формат UUID",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Пользователь не найден",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Внутренняя ошибка сервера",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "description": "Проверка статуса сервиса и подключения к БД.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Проверка состояния сервиса",
+                "responses": {
+                    "200": {
+                        "description": "Сервис функционирует нормально",
+                        "schema": {
+                            "$ref": "#/definitions/dto.HealthResponse"
                         }
                     }
                 }
@@ -180,22 +227,35 @@ const docTemplate = `{
             ],
             "properties": {
                 "budget_minutes": {
+                    "description": "BudgetMinutes - доступный лимит времени на маршрут в минутах",
                     "type": "integer",
                     "example": 120
                 },
                 "finish": {
-                    "$ref": "#/definitions/dto.PointDTO"
+                    "description": "Finish - географические координаты точки финиша",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.PointDTO"
+                        }
+                    ]
                 },
                 "start": {
-                    "$ref": "#/definitions/dto.PointDTO"
+                    "description": "Start - географические координаты точки старта",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.PointDTO"
+                        }
+                    ]
                 },
                 "user_ids": {
+                    "description": "UserIDs - список UUID участников группы",
                     "type": "array",
                     "items": {
                         "type": "string"
                     },
                     "example": [
-                        "[\"a4d3f56b-3cb8-45a7-96a9-83bc815b8b92\"]"
+                        "a949a4f7-5a00-4178-b740-4ce831159fbb",
+                        "484d5806-4d9a-444e-8a51-2f92034e8376"
                     ]
                 }
             }
@@ -204,34 +264,46 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "geojson": {
-                    "$ref": "#/definitions/entity.GeoJSONFeature"
+                    "description": "GeoJSON - стандартный GeoJSON Feature (LineString с массивом координат [lon, lat] для отрисовки линии на карте)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.GeoJSONFeature"
+                        }
+                    ]
                 },
                 "match_reasons": {
+                    "description": "MatchReasons - список текстовых объяснений, почему выбраны эти локации",
                     "type": "array",
                     "items": {
                         "type": "string"
                     },
                     "example": [
-                        "[\"Высокое совпадение по кофе (0.85)\"]"
+                        "Высокое совпадение по кофе (0.85)",
+                        "Оба участника любят прогулочные зоны"
                     ]
                 },
                 "match_score": {
+                    "description": "MatchScore - оценка удовлетворенности группы интересами выбранных мест (от 0.0 до 1.0)",
                     "type": "number",
                     "example": 0.89
                 },
                 "route_id": {
+                    "description": "RouteID - уникальный UUID сгенерированного маршрута",
                     "type": "string",
                     "example": "e2b5e28a-6950-482a-aef2-ecbb903ca914"
                 },
                 "total_distance_meters": {
+                    "description": "TotalDistanceMeters - суммарная длина пешеходного трека в метрах",
                     "type": "number",
                     "example": 2200
                 },
                 "total_duration_min": {
+                    "description": "TotalDurationMin - общее время маршрута (время переходов + время нахождения в локациях) в минутах",
                     "type": "integer",
                     "example": 85
                 },
                 "waypoints": {
+                    "description": "Waypoints - упорядоченный список контрольных точек (start, place, finish) с временем на посещение и расстоянием от предыдущей точки",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/dto.RoutePointResponse"
@@ -247,22 +319,24 @@ const docTemplate = `{
             ],
             "properties": {
                 "email": {
+                    "description": "Email - уникальный адрес электронной почты",
                     "type": "string",
-                    "example": "alexey@example.com"
+                    "example": "alex@example.com"
                 },
                 "interests": {
+                    "description": "Interests - вектор интересов пользователя (coffee, art, parks, food, sightseeing, bar со значениями от 0.0 до 1.0)",
                     "type": "object",
                     "additionalProperties": {
-                        "type": "number",
-                        "format": "float64"
+                        "type": "number"
                     },
                     "example": {
-                        "art": 0.4,
+                        "art": 0.2,
                         "coffee": 0.9,
-                        "parks": 0.7
+                        "parks": 0.8
                     }
                 },
                 "name": {
+                    "description": "Name - имя или никнейм пользователя",
                     "type": "string",
                     "example": "Алексей"
                 }
@@ -272,12 +346,24 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "details": {
+                    "description": "Details - детальное описание причины ошибки",
                     "type": "string",
-                    "example": "start coordinates are outside valid bounds"
+                    "example": "Координаты старта находятся за пределами допустимого диапазона"
                 },
                 "error": {
+                    "description": "Error - краткое описание ошибки",
                     "type": "string",
-                    "example": "invalid request payload"
+                    "example": "Невалидные входные данные"
+                }
+            }
+        },
+        "dto.HealthResponse": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "description": "Status - статус доступности сервиса (ok)",
+                    "type": "string",
+                    "example": "ok"
                 }
             }
         },
@@ -285,12 +371,14 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "lat": {
+                    "description": "Lat - географическая широта (latitude)",
                     "type": "number",
-                    "example": 55.751244
+                    "example": 55.148992
                 },
                 "lon": {
+                    "description": "Lon - географическая долгота (longitude)",
                     "type": "number",
-                    "example": 37.618423
+                    "example": 61.376862
                 }
             }
         },
@@ -298,32 +386,45 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "category": {
+                    "description": "Category - категория места (coffee, food, parks, art, sightseeing, bar)",
                     "type": "string",
                     "example": "coffee"
                 },
                 "distance_from_prev_meters": {
+                    "description": "DistanceFromPrevMeters - пешеходное расстояние от предыдущей точки (метры)",
                     "type": "number",
                     "example": 450
                 },
                 "duration_from_prev_min": {
+                    "description": "DurationFromPrevMin - время перехода от предыдущей точки (минуты)",
                     "type": "number",
                     "example": 6.5
                 },
                 "duration_min": {
+                    "description": "DurationMin - время нахождения в локации (минуты)",
                     "type": "integer",
                     "example": 25
                 },
                 "location": {
-                    "$ref": "#/definitions/dto.PointDTO"
+                    "description": "Location - координаты точки",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.PointDTO"
+                        }
+                    ]
                 },
                 "order": {
-                    "type": "integer"
+                    "description": "Order - порядковый номер остановки на маршруте (начиная с 0)",
+                    "type": "integer",
+                    "example": 1
                 },
                 "place_name": {
+                    "description": "PlaceName - название заведения или локации (для промежуточных точек)",
                     "type": "string",
                     "example": "Кофейня Зерно"
                 },
                 "type": {
+                    "description": "Type - тип точки: start (старт), place (локация), finish (финиш)",
                     "type": "string",
                     "example": "place"
                 }
@@ -333,29 +434,41 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "created_at": {
-                    "type": "string"
+                    "description": "CreatedAt - дата и время создания профиля",
+                    "type": "string",
+                    "example": "2026-09-26T18:00:00Z"
                 },
                 "email": {
+                    "description": "Email - адрес электронной почты",
                     "type": "string",
-                    "example": "alexey@example.com"
+                    "example": "alex@example.com"
                 },
                 "id": {
+                    "description": "ID - уникальный идентификатор пользователя (UUID)",
                     "type": "string",
-                    "example": "a4d3f56b-3cb8-45a7-96a9-83bc815b8b92"
+                    "example": "a949a4f7-5a00-4178-b740-4ce831159fbb"
                 },
                 "interests": {
+                    "description": "Interests - вектор интересов пользователя",
                     "type": "object",
                     "additionalProperties": {
-                        "type": "number",
-                        "format": "float64"
+                        "type": "number"
+                    },
+                    "example": {
+                        "art": 0.2,
+                        "coffee": 0.9,
+                        "parks": 0.8
                     }
                 },
                 "name": {
+                    "description": "Name - имя пользователя",
                     "type": "string",
                     "example": "Алексей"
                 },
                 "updated_at": {
-                    "type": "string"
+                    "description": "UpdatedAt - дата и время последнего обновления профиля",
+                    "type": "string",
+                    "example": "2026-09-26T18:00:00Z"
                 }
             }
         },
@@ -363,15 +476,22 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "geometry": {
-                    "$ref": "#/definitions/entity.GeoJSONGeometry"
+                    "description": "Geometry - геометрия пешеходной линии маршрута",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.GeoJSONGeometry"
+                        }
+                    ]
                 },
                 "properties": {
+                    "description": "Properties - свойства маршрута (id, match_score, match_reasons)",
                     "type": "object",
                     "additionalProperties": true
                 },
                 "type": {
-                    "description": "\"Feature\"",
-                    "type": "string"
+                    "description": "Type - тип объекта GeoJSON (всегда Feature)",
+                    "type": "string",
+                    "example": "Feature"
                 }
             }
         },
@@ -379,19 +499,19 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "coordinates": {
-                    "description": "Array of [lon, lat] pairs",
+                    "description": "Coordinates - массив пар координат [долгота, широта] пешеходного трека",
                     "type": "array",
                     "items": {
                         "type": "array",
                         "items": {
-                            "type": "number",
-                            "format": "float64"
+                            "type": "number"
                         }
                     }
                 },
                 "type": {
-                    "description": "\"LineString\"",
-                    "type": "string"
+                    "description": "Type - тип геометрии (всегда LineString для пешеходного трека)",
+                    "type": "string",
+                    "example": "LineString"
                 }
             }
         }
@@ -400,12 +520,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
+	Version:          "1.0.0",
 	Host:             "localhost:8080",
 	BasePath:         "/",
 	Schemes:          []string{},
-	Title:            "Team Route Optimizer API",
-	Description:      "Backend-сервис оркестрации персонализированных пешеходных маршрутов",
+	Title:            "API Оптимизации Туристических Маршрутов",
+	Description:      "Сервис построения персонализированных групповых пешеходных маршрутов с учетом пересечения интересов участников, бюджета времени, интеграцией геоданных (2GIS / OpenStreetMap) и пешеходного графа OSRM.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

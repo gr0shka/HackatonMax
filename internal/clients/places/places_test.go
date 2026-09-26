@@ -58,6 +58,10 @@ func TestTwoGisClient_SuccessAndCache(t *testing.T) {
 		assert.Equal(t, "/3.0/items", r.URL.Path)
 		assert.Equal(t, "test-key", r.URL.Query().Get("key"))
 		assert.Equal(t, "кафе", r.URL.Query().Get("q"))
+		assert.Equal(t, "10", r.URL.Query().Get("page_size"))
+		assert.Equal(t, "37.610000,55.750000", r.URL.Query().Get("location"))
+		assert.Equal(t, "1000", r.URL.Query().Get("radius"))
+		assert.Equal(t, "items.point,items.rubrics,items.reviews", r.URL.Query().Get("fields"))
 
 		resp := map[string]interface{}{
 			"meta": map[string]interface{}{"code": 200},
@@ -112,6 +116,84 @@ func TestTwoGisClient_SuccessAndCache(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, res2, 1)
 	assert.Equal(t, 1, requestCount, "Expected cache hit without extra HTTP request")
+}
+
+func TestTwoGisClient_DefaultQueryAndPageSizeClamping(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// When query is empty, it should default to "достопримечательности"
+		assert.Equal(t, "достопримечательности", r.URL.Query().Get("q"))
+		// When limit > 10 is requested, page_size should be clamped to 10
+		assert.Equal(t, "10", r.URL.Query().Get("page_size"))
+
+		resp := map[string]interface{}{
+			"meta": map[string]interface{}{"code": 200},
+			"result": map[string]interface{}{
+				"items": []map[string]interface{}{},
+				"total": 0,
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := places.NewTwoGisClient(places.TwoGisConfig{
+		BaseURL:     server.URL,
+		APIKey:      "test-key",
+		CacheTTL:    1 * time.Minute,
+		CacheSize:   100,
+		HTTPTimeout: 2 * time.Second,
+	})
+
+	ctx := context.Background()
+	res, err := client.FindPlaces(ctx, 55.75, 37.61, 1500, "", 50)
+	require.NoError(t, err)
+	assert.Empty(t, res)
+}
+
+func TestTwoGisClient_Meta400Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK) // 2GIS returns HTTP 200 with meta.code 400
+		_, _ = w.Write([]byte(`{"meta":{"api_version":"3.0.21656","code":400,"error":{"message":"Length of parameter 'page_size' should be from 1 to 10","type":"paramIsOutsideSet"},"issue_date":"20260926"}}`))
+	}))
+	defer server.Close()
+
+	client := places.NewTwoGisClient(places.TwoGisConfig{
+		BaseURL:     server.URL,
+		APIKey:      "test-key",
+		CacheTTL:    1 * time.Minute,
+		CacheSize:   100,
+		HTTPTimeout: 2 * time.Second,
+	})
+
+	ctx := context.Background()
+	_, err := client.FindPlaces(ctx, 55.75, 37.61, 1000, "парк", 10)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, places.ErrUnavailable)
+	assert.Contains(t, err.Error(), "Length of parameter 'page_size' should be from 1 to 10")
+}
+
+func TestTwoGisClient_HTTP400Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"bad_request"}`))
+	}))
+	defer server.Close()
+
+	client := places.NewTwoGisClient(places.TwoGisConfig{
+		BaseURL:     server.URL,
+		APIKey:      "test-key",
+		CacheTTL:    1 * time.Minute,
+		CacheSize:   100,
+		HTTPTimeout: 2 * time.Second,
+	})
+
+	ctx := context.Background()
+	_, err := client.FindPlaces(ctx, 55.75, 37.61, 1000, "парк", 10)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, places.ErrUnavailable)
+	assert.Contains(t, err.Error(), "bad_request")
 }
 
 func TestTwoGisClient_RateLimit(t *testing.T) {

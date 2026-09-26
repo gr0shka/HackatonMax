@@ -13,16 +13,16 @@ import (
 )
 
 // BuildRoute godoc
-// @Summary      Build personalized group pedestrian route
-// @Description  Generates an optimized walking route with ordered stops, GeoJSON geometry, duration, and match reasons
+// @Summary      Оптимизация и генерация группового маршрута
+// @Description  Принимает список идентификаторов участников, лимит времени в минутах, а также координаты старта и финиша. Сервис находит кандидатов, передает их в алгоритм ML-мэтчинга и строит непрерывный пешеходный трек OSRM с таймингом каждой остановки.
 // @Tags         routes
 // @Accept       json
 // @Produce      json
-// @Param        request body dto.BuildRouteRequest true "Route parameters"
-// @Success      200  {object}  dto.BuildRouteResponse
-// @Failure      400  {object}  dto.ErrorResponse
-// @Failure      404  {object}  dto.ErrorResponse
-// @Failure      500  {object}  dto.ErrorResponse
+// @Param        request body dto.BuildRouteRequest true "Параметры генерации маршрута"
+// @Success      200  {object}  dto.BuildRouteResponse "Оптимизированный пешеходный маршрут успешно построен"
+// @Failure      400  {object}  dto.ErrorResponse "Невалидный JSON или некорректные координаты"
+// @Failure      404  {object}  dto.ErrorResponse "Не найдены кандидаты мест в заданной области или участник не найден"
+// @Failure      500  {object}  dto.ErrorResponse "Внутренняя ошибка сервиса"
 // @Router       /api/v1/routes/build [post]
 func (h *Handler) BuildRoute(w http.ResponseWriter, r *http.Request) {
 	var req dto.BuildRouteRequest

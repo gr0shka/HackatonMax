@@ -3,15 +3,22 @@ definitions:
   dto.BuildRouteRequest:
     properties:
       budget_minutes:
+        description: BudgetMinutes - доступный лимит времени на маршрут в минутах
         example: 120
         type: integer
       finish:
-        $ref: '#/definitions/dto.PointDTO'
+        allOf:
+        - $ref: '#/definitions/dto.PointDTO'
+        description: Finish - географические координаты точки финиша
       start:
-        $ref: '#/definitions/dto.PointDTO'
+        allOf:
+        - $ref: '#/definitions/dto.PointDTO'
+        description: Start - географические координаты точки старта
       user_ids:
+        description: UserIDs - список UUID участников группы
         example:
-        - '["a4d3f56b-3cb8-45a7-96a9-83bc815b8b92"]'
+        - a949a4f7-5a00-4178-b740-4ce831159fbb
+        - 484d5806-4d9a-444e-8a51-2f92034e8376
         items:
           type: string
         type: array
@@ -24,26 +31,40 @@ definitions:
   dto.BuildRouteResponse:
     properties:
       geojson:
-        $ref: '#/definitions/entity.GeoJSONFeature'
+        allOf:
+        - $ref: '#/definitions/entity.GeoJSONFeature'
+        description: GeoJSON - стандартный GeoJSON Feature (LineString с массивом
+          координат [lon, lat] для отрисовки линии на карте)
       match_reasons:
+        description: MatchReasons - список текстовых объяснений, почему выбраны эти
+          локации
         example:
-        - '["Высокое совпадение по кофе (0.85)"]'
+        - Высокое совпадение по кофе (0.85)
+        - Оба участника любят прогулочные зоны
         items:
           type: string
         type: array
       match_score:
+        description: MatchScore - оценка удовлетворенности группы интересами выбранных
+          мест (от 0.0 до 1.0)
         example: 0.89
         type: number
       route_id:
+        description: RouteID - уникальный UUID сгенерированного маршрута
         example: e2b5e28a-6950-482a-aef2-ecbb903ca914
         type: string
       total_distance_meters:
+        description: TotalDistanceMeters - суммарная длина пешеходного трека в метрах
         example: 2200
         type: number
       total_duration_min:
+        description: TotalDurationMin - общее время маршрута (время переходов + время
+          нахождения в локациях) в минутах
         example: 85
         type: integer
       waypoints:
+        description: Waypoints - упорядоченный список контрольных точек (start, place,
+          finish) с временем на посещение и расстоянием от предыдущей точки
         items:
           $ref: '#/definitions/dto.RoutePointResponse'
         type: array
@@ -51,18 +72,21 @@ definitions:
   dto.CreateOrUpdateUserRequest:
     properties:
       email:
-        example: alexey@example.com
+        description: Email - уникальный адрес электронной почты
+        example: alex@example.com
         type: string
       interests:
         additionalProperties:
-          format: float64
           type: number
+        description: Interests - вектор интересов пользователя (coffee, art, parks,
+          food, sightseeing, bar со значениями от 0.0 до 1.0)
         example:
-          art: 0.4
+          art: 0.2
           coffee: 0.9
-          parks: 0.7
+          parks: 0.8
         type: object
       name:
+        description: Name - имя или никнейм пользователя
         example: Алексей
         type: string
     required:
@@ -72,113 +96,170 @@ definitions:
   dto.ErrorResponse:
     properties:
       details:
-        example: start coordinates are outside valid bounds
+        description: Details - детальное описание причины ошибки
+        example: Координаты старта находятся за пределами допустимого диапазона
         type: string
       error:
-        example: invalid request payload
+        description: Error - краткое описание ошибки
+        example: Невалидные входные данные
+        type: string
+    type: object
+  dto.HealthResponse:
+    properties:
+      status:
+        description: Status - статус доступности сервиса (ok)
+        example: ok
         type: string
     type: object
   dto.PointDTO:
     properties:
       lat:
-        example: 55.751244
+        description: Lat - географическая широта (latitude)
+        example: 55.148992
         type: number
       lon:
-        example: 37.618423
+        description: Lon - географическая долгота (longitude)
+        example: 61.376862
         type: number
     type: object
   dto.RoutePointResponse:
     properties:
       category:
+        description: Category - категория места (coffee, food, parks, art, sightseeing,
+          bar)
         example: coffee
         type: string
       distance_from_prev_meters:
+        description: DistanceFromPrevMeters - пешеходное расстояние от предыдущей
+          точки (метры)
         example: 450
         type: number
       duration_from_prev_min:
+        description: DurationFromPrevMin - время перехода от предыдущей точки (минуты)
         example: 6.5
         type: number
       duration_min:
+        description: DurationMin - время нахождения в локации (минуты)
         example: 25
         type: integer
       location:
-        $ref: '#/definitions/dto.PointDTO'
+        allOf:
+        - $ref: '#/definitions/dto.PointDTO'
+        description: Location - координаты точки
       order:
+        description: Order - порядковый номер остановки на маршруте (начиная с 0)
+        example: 1
         type: integer
       place_name:
+        description: PlaceName - название заведения или локации (для промежуточных
+          точек)
         example: Кофейня Зерно
         type: string
       type:
+        description: 'Type - тип точки: start (старт), place (локация), finish (финиш)'
         example: place
         type: string
     type: object
   dto.UserResponse:
     properties:
       created_at:
+        description: CreatedAt - дата и время создания профиля
+        example: "2026-09-26T18:00:00Z"
         type: string
       email:
-        example: alexey@example.com
+        description: Email - адрес электронной почты
+        example: alex@example.com
         type: string
       id:
-        example: a4d3f56b-3cb8-45a7-96a9-83bc815b8b92
+        description: ID - уникальный идентификатор пользователя (UUID)
+        example: a949a4f7-5a00-4178-b740-4ce831159fbb
         type: string
       interests:
         additionalProperties:
-          format: float64
           type: number
+        description: Interests - вектор интересов пользователя
+        example:
+          art: 0.2
+          coffee: 0.9
+          parks: 0.8
         type: object
       name:
+        description: Name - имя пользователя
         example: Алексей
         type: string
       updated_at:
+        description: UpdatedAt - дата и время последнего обновления профиля
+        example: "2026-09-26T18:00:00Z"
         type: string
     type: object
   entity.GeoJSONFeature:
     properties:
       geometry:
-        $ref: '#/definitions/entity.GeoJSONGeometry'
+        allOf:
+        - $ref: '#/definitions/entity.GeoJSONGeometry'
+        description: Geometry - геометрия пешеходной линии маршрута
       properties:
         additionalProperties: true
+        description: Properties - свойства маршрута (id, match_score, match_reasons)
         type: object
       type:
-        description: '"Feature"'
+        description: Type - тип объекта GeoJSON (всегда Feature)
+        example: Feature
         type: string
     type: object
   entity.GeoJSONGeometry:
     properties:
       coordinates:
-        description: Array of [lon, lat] pairs
+        description: Coordinates - массив пар координат [долгота, широта] пешеходного
+          трека
         items:
           items:
-            format: float64
             type: number
           type: array
         type: array
       type:
-        description: '"LineString"'
+        description: Type - тип геометрии (всегда LineString для пешеходного трека)
+        example: LineString
         type: string
     type: object
 host: localhost:8080
 info:
   contact:
     email: support@example.com
-    name: API Support
-  description: Backend-сервис оркестрации персонализированных пешеходных маршрутов
+    name: Команда разработки маршрутов
+  description: Сервис построения персонализированных групповых пешеходных маршрутов
+    с учетом пересечения интересов участников, бюджета времени, интеграцией геоданных
+    (2GIS / OpenStreetMap) и пешеходного графа OSRM.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
   termsOfService: http://swagger.io/terms/
-  title: Team Route Optimizer API
-  version: "1.0"
+  title: API Оптимизации Туристических Маршрутов
+  version: 1.0.0
 paths:
+  /api/v1/health:
+    get:
+      description: Проверка статуса сервиса и подключения к БД.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Сервис функционирует нормально
+          schema:
+            $ref: '#/definitions/dto.HealthResponse'
+      summary: Проверка состояния сервиса
+      tags:
+      - system
   /api/v1/routes/build:
     post:
       consumes:
       - application/json
-      description: Generates an optimized walking route with ordered stops, GeoJSON
-        geometry, duration, and match reasons
+      description: Принимает список идентификаторов участников, лимит времени в минутах,
+        а также координаты старта и финиша. Сервис находит кандидатов, передает их
+        в алгоритм ML-мэтчинга и строит непрерывный пешеходный трек OSRM с таймингом
+        каждой остановки.
       parameters:
-      - description: Route parameters
+      - description: Параметры генерации маршрута
         in: body
         name: request
         required: true
@@ -188,31 +269,33 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Оптимизированный пешеходный маршрут успешно построен
           schema:
             $ref: '#/definitions/dto.BuildRouteResponse'
         "400":
-          description: Bad Request
+          description: Невалидный JSON или некорректные координаты
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "404":
-          description: Not Found
+          description: Не найдены кандидаты мест в заданной области или участник не
+            найден
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "500":
-          description: Internal Server Error
+          description: Внутренняя ошибка сервиса
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
-      summary: Build personalized group pedestrian route
+      summary: Оптимизация и генерация группового маршрута
       tags:
       - routes
   /api/v1/users:
     post:
       consumes:
       - application/json
-      description: Creates a new user profile or updates interests
+      description: Регистрирует участника группы с вектором интересов (coffee, art,
+        parks, food, sightseeing, bar со значениями от 0.0 до 1.0).
       parameters:
-      - description: User data
+      - description: Данные профиля пользователя
         in: body
         name: request
         required: true
@@ -222,26 +305,31 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Профиль успешно создан или обновлен
+          schema:
+            $ref: '#/definitions/dto.UserResponse'
+        "201":
+          description: Профиль успешно создан
           schema:
             $ref: '#/definitions/dto.UserResponse'
         "400":
-          description: Bad Request
+          description: Ошибка валидации JSON или диапазонов интересов
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "500":
-          description: Internal Server Error
+          description: Внутренняя ошибка сервера
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
-      summary: Create or update user profile
+      summary: Создание профиля пользователя
       tags:
       - users
   /api/v1/users/{id}:
     get:
-      description: Retrieves profile information and interest weights for a user by
-        UUID
+      description: Возвращает информацию о пользователе и сохраненных предпочтениях
+        по его UUID.
       parameters:
-      - description: User UUID
+      - description: UUID пользователя
+        example: a949a4f7-5a00-4178-b740-4ce831159fbb
         in: path
         name: id
         required: true
@@ -250,22 +338,35 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Профиль пользователя успешно найден
           schema:
             $ref: '#/definitions/dto.UserResponse'
         "400":
-          description: Bad Request
+          description: Некорректный формат UUID
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "404":
-          description: Not Found
+          description: Пользователь не найден
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "500":
-          description: Internal Server Error
+          description: Внутренняя ошибка сервера
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
-      summary: Get user profile
+      summary: Получение профиля пользователя
       tags:
       - users
+  /health:
+    get:
+      description: Проверка статуса сервиса и подключения к БД.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Сервис функционирует нормально
+          schema:
+            $ref: '#/definitions/dto.HealthResponse'
+      summary: Проверка состояния сервиса
+      tags:
+      - system
 swagger: "2.0"

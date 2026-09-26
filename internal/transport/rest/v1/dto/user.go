@@ -2,24 +2,34 @@ package dto
 
 import "time"
 
-// CreateOrUpdateUserRequest defines the request body for creating or updating a user.
+// CreateOrUpdateUserRequest параметры тела запроса для создания или обновления профиля пользователя.
 type CreateOrUpdateUserRequest struct {
-	Name      string             `json:"name" example:"Алексей" binding:"required"`
-	Email     string             `json:"email" example:"alexey@example.com" binding:"required"`
-	Interests map[string]float64 `json:"interests" example:"coffee:0.9,parks:0.7,art:0.4"`
+	// Name - имя или никнейм пользователя
+	Name string `json:"name" example:"Алексей" binding:"required"`
+	// Email - уникальный адрес электронной почты
+	Email string `json:"email" example:"alex@example.com" binding:"required"`
+	// Interests - вектор интересов пользователя (coffee, art, parks, food, sightseeing, bar со значениями от 0.0 до 1.0)
+	Interests map[string]float64 `json:"interests" example:"coffee:0.9,parks:0.8,art:0.2"`
 }
 
-// UserResponse defines the user profile response body.
+// UserResponse структура данных профиля пользователя в ответах API.
 type UserResponse struct {
-	ID        string             `json:"id" example:"a4d3f56b-3cb8-45a7-96a9-83bc815b8b92"`
-	Name      string             `json:"name" example:"Алексей"`
-	Email     string             `json:"email" example:"alexey@example.com"`
-	Interests map[string]float64 `json:"interests"`
-	CreatedAt time.Time          `json:"created_at"`
-	UpdatedAt time.Time          `json:"updated_at"`
+	// ID - уникальный идентификатор пользователя (UUID)
+	ID string `json:"id" example:"a949a4f7-5a00-4178-b740-4ce831159fbb"`
+	// Name - имя пользователя
+	Name string `json:"name" example:"Алексей"`
+	// Email - адрес электронной почты
+	Email string `json:"email" example:"alex@example.com"`
+	// Interests - вектор интересов пользователя
+	Interests map[string]float64 `json:"interests" example:"coffee:0.9,parks:0.8,art:0.2"`
+	// CreatedAt - дата и время создания профиля
+	CreatedAt time.Time `json:"created_at" example:"2026-09-26T18:00:00Z"`
+	// UpdatedAt - дата и время последнего обновления профиля
+	UpdatedAt time.Time `json:"updated_at" example:"2026-09-26T18:00:00Z"`
 }
 
-// AddFriendRequest defines the payload to establish a friendship link.
+// AddFriendRequest параметры для добавления связи дружбы между пользователями.
 type AddFriendRequest struct {
-	FriendID string `json:"friend_id" example:"b8c4d21e-12ab-4ef7-8910-123456789abc"`
+	// FriendID - UUID добавляемого друга
+	FriendID string `json:"friend_id" example:"484d5806-4d9a-444e-8a51-2f92034e8376"`
 }
