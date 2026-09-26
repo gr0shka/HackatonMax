@@ -1,0 +1,271 @@
+basePath: /
+definitions:
+  dto.BuildRouteRequest:
+    properties:
+      budget_minutes:
+        example: 120
+        type: integer
+      finish:
+        $ref: '#/definitions/dto.PointDTO'
+      start:
+        $ref: '#/definitions/dto.PointDTO'
+      user_ids:
+        example:
+        - '["a4d3f56b-3cb8-45a7-96a9-83bc815b8b92"]'
+        items:
+          type: string
+        type: array
+    required:
+    - budget_minutes
+    - finish
+    - start
+    - user_ids
+    type: object
+  dto.BuildRouteResponse:
+    properties:
+      geojson:
+        $ref: '#/definitions/entity.GeoJSONFeature'
+      match_reasons:
+        example:
+        - '["Высокое совпадение по кофе (0.85)"]'
+        items:
+          type: string
+        type: array
+      match_score:
+        example: 0.89
+        type: number
+      route_id:
+        example: e2b5e28a-6950-482a-aef2-ecbb903ca914
+        type: string
+      total_distance_meters:
+        example: 2200
+        type: number
+      total_duration_min:
+        example: 85
+        type: integer
+      waypoints:
+        items:
+          $ref: '#/definitions/dto.RoutePointResponse'
+        type: array
+    type: object
+  dto.CreateOrUpdateUserRequest:
+    properties:
+      email:
+        example: alexey@example.com
+        type: string
+      interests:
+        additionalProperties:
+          format: float64
+          type: number
+        example:
+          art: 0.4
+          coffee: 0.9
+          parks: 0.7
+        type: object
+      name:
+        example: Алексей
+        type: string
+    required:
+    - email
+    - name
+    type: object
+  dto.ErrorResponse:
+    properties:
+      details:
+        example: start coordinates are outside valid bounds
+        type: string
+      error:
+        example: invalid request payload
+        type: string
+    type: object
+  dto.PointDTO:
+    properties:
+      lat:
+        example: 55.751244
+        type: number
+      lon:
+        example: 37.618423
+        type: number
+    type: object
+  dto.RoutePointResponse:
+    properties:
+      category:
+        example: coffee
+        type: string
+      distance_from_prev_meters:
+        example: 450
+        type: number
+      duration_from_prev_min:
+        example: 6.5
+        type: number
+      duration_min:
+        example: 25
+        type: integer
+      location:
+        $ref: '#/definitions/dto.PointDTO'
+      order:
+        type: integer
+      place_name:
+        example: Кофейня Зерно
+        type: string
+      type:
+        example: place
+        type: string
+    type: object
+  dto.UserResponse:
+    properties:
+      created_at:
+        type: string
+      email:
+        example: alexey@example.com
+        type: string
+      id:
+        example: a4d3f56b-3cb8-45a7-96a9-83bc815b8b92
+        type: string
+      interests:
+        additionalProperties:
+          format: float64
+          type: number
+        type: object
+      name:
+        example: Алексей
+        type: string
+      updated_at:
+        type: string
+    type: object
+  entity.GeoJSONFeature:
+    properties:
+      geometry:
+        $ref: '#/definitions/entity.GeoJSONGeometry'
+      properties:
+        additionalProperties: true
+        type: object
+      type:
+        description: '"Feature"'
+        type: string
+    type: object
+  entity.GeoJSONGeometry:
+    properties:
+      coordinates:
+        description: Array of [lon, lat] pairs
+        items:
+          items:
+            format: float64
+            type: number
+          type: array
+        type: array
+      type:
+        description: '"LineString"'
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@example.com
+    name: API Support
+  description: Backend-сервис оркестрации персонализированных пешеходных маршрутов
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: Team Route Optimizer API
+  version: "1.0"
+paths:
+  /api/v1/routes/build:
+    post:
+      consumes:
+      - application/json
+      description: Generates an optimized walking route with ordered stops, GeoJSON
+        geometry, duration, and match reasons
+      parameters:
+      - description: Route parameters
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.BuildRouteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BuildRouteResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Build personalized group pedestrian route
+      tags:
+      - routes
+  /api/v1/users:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new user profile or updates interests
+      parameters:
+      - description: User data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateOrUpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Create or update user profile
+      tags:
+      - users
+  /api/v1/users/{id}:
+    get:
+      description: Retrieves profile information and interest weights for a user by
+        UUID
+      parameters:
+      - description: User UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Get user profile
+      tags:
+      - users
+swagger: "2.0"
