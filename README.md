@@ -1,213 +1,286 @@
-Markdown
+# 🗺️ Платформа Оптимизации Туристических Маршрутов (Route Optimizer)
 
-# 🧭 Team Route Optimizer Backend (Hackathon MVP)
-
-## 📌 Project Overview
-Backend-сервис оркестрации персонализированных пешеходных маршрутов для одного или группы пользователей на базе заданного тайм-лимита. 
-
-Сервис агрегирует профили пользователей, запрашивает кандидатов POI через 2GIS Places API (с поддержкой In-Memory кэширования и фоллбека на локальную БД/OSM при rate-limit), передает контекст во внешний ML-сервис для ранжирования и сборки цепочки, запрашивает геометрию маршрута в OSRM и возвращает готовый GeoJSON на фронтенд.
+> **Сервис построения персонализированных групповых пешеходных маршрутов** с учетом баланса интересов участников, бюджета времени, интеграцией каталогов мест (**2GIS Places API** и офлайн-базы **OpenStreetMap / PostGIS**) и пешеходного графа **OSRM**.
 
 ---
 
-## 🛑 CRITICAL AGENT RULES: ZERO HALLUCINATION & API BUDGET
-
-1. **NO GUESSING / NO HALLUCINATIONS**:
-   - Категорически запрещено выдумывать сигнатуры запросов, названия параметров, заголовки авторизации или формат ответа для 2GIS API, ML-сервиса или OSRM.
-   - Если предоставленной в `docs/context/` документации недостаточно, параметр неочевиден или возникли сомнения в схеме данных — **НЕМЕДЛЕННО ОСТАНОВИСЬ И СПРОСИ У МЕНЯ**. 
-   - Не пытайся «угадать» формат по аналогии с другими API. Сформулируй точный вопрос: какой эндпоинт, какой параметр или какой payload требуется уточнить.
-2. **API BUDGET PROTECTION**:
-   - Тестовый демо-ключ 2GIS имеет жесткие лимиты (RPS и суточную квоту).
-   - **Запрещено** запускать код или тесты, делающие реальные сетевые запросы к 2GIS API методом проб и ошибок.
-   - Любое тестирование интеграции с 2GIS на этапе разработки должно проводиться **исключительно через моки (`httptest.Server`)** и заготовленные JSON-фикстуры ответов.
-   - Реальный запрос к внешнему API допускается строго после твоего подтверждения и успешного прохождения всех mock-тестов.
+## 📋 Оглавление
+1. [О проекте и решаемая задача](#-о-проекте-и-решаемая-задача)
+2. [Стек технологий](#-стек-технологий)
+3. [Архитектура монорепозитория](#-архитектура-монорепозитория)
+4. [Быстрый старт в Docker Compose](#-быстрый-старт-в-docker-compose)
+5. [Интерактивная документация API (Swagger UI)](#-интерактивная-документация-api-swagger-ui)
+6. [Локальная разработка](#-локальная-разработка)
+7. [Примеры API-запросов (cURL)](#-примеры-api-запросов-curl)
+8. [Визуализация маршрута в GeoJSON](#-визуализация-маршрута-в-geojson)
 
 ---
 
-## 🏗 Architecture & Stack
-- **Language**: Go 1.23+
-- **Architecture**: Classic Layered Architecture (Transport -> Service/Usecase -> Repository/Clients)
-- **DI Engine**: `go.uber.org/fx` (Uber Fx)
-- **HTTP Router**: `github.com/go-chi/chi/v5`
-- **Database**: PostgreSQL 16 + PostGIS
-- **Migrations**: `pressly/goose/v3` (SQL migrations)
-- **API Spec**: OpenAPI 3.0 via `swaggo/swag` (Swagger UI on `/swagger/*`)
-- **Testing**:
-  - Unit tests: `stretchr/testify` (mocking interfaces via `vektra/mockery` or testify/mock)
-  - Integration DB tests: `testcontainers/testcontainers-go` (Postgres/PostGIS container)
+## 🎯 О проекте и решаемая задача
+
+При планировании совместных прогулок группа людей часто сталкивается с проблемой согласования интересов: один хочет попить спешелти кофе, второй — зайти в музей или арт-галерею, а третий — погулять в тихом парке. При этом у группы всегда есть жесткое ограничение по времени (например, 1.5–2 часа) и заданные точки старта и финиша.
+
+**Route Optimizer решает эту задачу:**
+1. **Агрегация профилей группы:** собирает векторы интересов участников (кофе, культура, парки, гастрономия, история).
+2. **Умный поиск POI с каскадным Fallback:** запрашивает релевантные места в радиусе маршрута через **2GIS Places API 3.0** (с кешированием и rate-limiting). При недоступности или превышении квоты автоматически переключается на офлайн-базу **PostGIS**, предварительно наполненную данными из **OpenStreetMap (OSM)**.
+3. **ML-ранжирование и оптимизация цепочки:** ML-сервис ранжирует кандидатов, максимизирует групповую удовлетворенность и формирует оптимальную последовательность остановок с выделением времени на каждую локацию.
+4. **Построение пешеходного графа:** обращается к **OSRM (Open Source Routing Machine)** для получения реальной пешеходной геометрии (полилинии) и точного времени перемещения между точками.
+5. **Выдача готового GeoJSON:** клиенты получают GeoJSON FeatureCollection с полной траекторией маршрута, метаданными точек, расчетным таймингом и текстовым объяснением выбора локаций.
 
 ---
 
-## 📂 Required Project Structure
-Строго придерживаться следующей структуры директорий:
+## 🛠 Стек технологий
+
+- **Go 1.23+ / 1.26**: основной язык бэкенда высокой производительности.
+- **Uber Fx (`go.uber.org/fx`)**: внедрение зависимостей (Dependency Injection) и управление жизненным циклом компонентов.
+- **Chi Router (`github.com/go-chi/chi/v5`)**: легковесный, производительный HTTP-роутер с middleware (CORS, Recoverer, Logging, RequestID).
+- **PostgreSQL 16 + PostGIS 3.4**: реляционная СУБД с пространственными индексами (`SP-GIST`, `GEOMETRY(Point, 4326)`) для поиска мест в радиусе (`ST_DWithin`, `ST_Distance`).
+- **pgx/v5 (`github.com/jackc/pgx/v5`)**: быстрый драйвер и пул соединений PostgreSQL.
+- **Goose (`pressly/goose/v3`)**: управление миграциями базы данных с автомиграцией при старте.
+- **2GIS Places API 3.0**: геоинформационный провайдер данных о заведениях и достопримечательностях.
+- **OSRM (Open Source Routing Machine)**: пешеходная маршрутизация по графу дорог.
+- **Python 3.11 (ML-сервис)**: сервис оптимизации цепочки остановок и скоринга группового согласия.
+- **Nginx Alpine**: веб-сервер для статического фронтенда.
+- **Docker & Docker Compose**: мультистейдж-контейнеризация всех микросервисов.
+- **Swagger / OpenAPI 3.0 (`swaggo/swag`)**: полная русскоязычная документация API.
+
+---
+
+## 📂 Архитектура монорепозитория
+
+Репозиторий организован по принципу чистого разделения ответственности:
 
 ```text
 .
-├── cmd/
-│   └── api/
-│       └── main.go              # Точка входа, fx.New(...).Run()
-├── config/
-│   └── config.go             # Конфигурация (cleanenv/viper) через ENV
-├── docs/                     # Автогенерируемый Swagger (swag init)
-│   ├── context/              # Документация внешних API и лимиты
-│   ├── docs.go
-│   ├── swagger.json
-│   └── swagger.yaml
-├── internal/
-│   ├── app/
-│   │   └── app.go            # fx.Module сборщик всех зависимостей
-│   ├── transport/
-│   │   └── rest/
-│   │       ├── router.go     # Регистрация Chi маршрутов, CORS, Middleware
-│   │       ├── v1/
-│   │       │   ├── dto/      # Входные и выходные структуры REST API
-│   │       │   ├── handler.go
-│   │       │   ├── route.go  # Эндпоинты фронтенда: генерация маршрутов
-│   │       │   └── user.go   # Эндпоинты управления профилями/друзьями
-│   ├── clients/
-│   │   ├── ml/               # HTTP-клиент к внешнему ML-сервису
-│   │   │   ├── client.go
-│   │   │   ├── dto.go        # Спецификация запроса/ответа ML
-│   │   │   └── interface.go
-│   │   ├── routing/          # HTTP-клиент к OSRM (пешеходные треки)
-│   │   │   ├── client.go
-│   │   │   └── interface.go
-│   │   └── places/           # Провайдеры мест (2GIS + Fallback)
-│   │       ├── interface.go  # PlacesProvider interface
-│   │       ├── twogis.go     # Клиент 2GIS API (учитывать демо-лимиты и кэш)
-│   │       └── fallback.go   # Резервный источник мест из БД/OSM
-│   ├── service/              # Слой бизнес-логики (Usecases)
-│   │   ├── interfaces.go     # Интерфейсы репозиториев и клиентов для изоляции
-│   │   ├── route_service.go  # Оркестрация флоу маршрутов
-│   │   └── user_service.go   # Управление пользователями и профилями
-│   ├── repository/           # Слой персистентности (Postgres)
-│   │   ├── postgres/
-│   │   │   ├── user_repo.go
-│   │   │   ├── place_repo.go
-│   │   │   └── db.go         # pgxpool / database/sql подключение
-│   └── entity/               # Чистые доменные модели (User, Place, Route, LatLon)
-├── migrations/               # Goose SQL-миграции
-│   └── 20260926000001_init.sql
-├── docker-compose.yml        # Postgres + PostGIS
-├── Makefile
-└── README.md
+├── backend/                   # Исходный код Go Backend API
+│   ├── cmd/
+│   │   ├── api/               # Точка входа HTTP API (main.go, Fx Module)
+│   │   └── osm-importer/      # CLI утилита для офлайн-сидинга POI из OpenStreetMap
+│   ├── config/                # Чтение конфигурации через .env и переменные окружения
+│   ├── docs/                  # Сгенерированная OpenAPI/Swagger спецификация
+│   ├── internal/
+│   │   ├── app/               # Сборка графа зависимостей Uber Fx и HTTP-сервера
+│   │   ├── clients/           # Внешние клиенты:
+│   │   │   ├── ml/            #   - HTTP-клиент к ML-сервису оптимизации
+│   │   │   ├── places/        #   - 2GIS Places API, кэш и Fallback к PostGIS
+│   │   │   └── routing/       #   - OSRM маршрутизатор (Foot Route)
+│   │   ├── entity/            # Доменные сущности (User, Place, Route, LatLon)
+│   │   ├── importer/osm/      # Логика сидера Overpass API -> PostGIS
+│   │   ├── repository/        # Доступ к PostgreSQL / PostGIS (UserRepo, PlaceRepo)
+│   │   ├── service/           # Бизнес-логика (RouteService, UserService)
+│   │   └── transport/rest/    # REST-хендлеры Chi и DTO (v1)
+│   ├── migrations/            # SQL-миграции Goose (структура БД и PostGIS)
+│   ├── Dockerfile             # Multi-stage Dockerfile бэкенда (non-root appuser)
+│   ├── Makefile               # Команды сборки, тестов, миграций и Swagger
+│   ├── go.mod                 # Go зависимости
+│   └── .env.example           # Пример переменных окружения бэкенда
+│
+├── ml-service/                # Сервис машинного обучения (Python)
+│   ├── main.py                # HTTP-обработчик POST /api/v1/optimize
+│   └── Dockerfile             # Легковесный образ на python:3.11-alpine (порт 8001)
+│
+├── frontend/                  # Клиентский интерфейс / Демо-лендинг
+│   ├── index.html             # Веб-интерфейс с быстрыми ссылками и cURL примерами
+│   └── Dockerfile             # Образ на nginx:alpine (порт 3000)
+│
+├── docker-compose.yml         # Единая оркестрация (Postgres, Backend, ML, Frontend)
+├── .env.example               # Шаблон глобальных переменных окружения
+└── README.md                  # Документация проекта
+```
 
-🚦 Step-by-Step Implementation Instructions (Agent Protocol)
+---
 
-Выполняй разработку строго последовательно, этап за этапом. После каждого этапа код должен компилироваться (go build ./...).
-Stage 1: Domain Entities & Migrations
+## 🚀 Быстрый старт в Docker Compose
 
-    Опиши доменные структуры в internal/entity/:
+Запуск всей инфраструктуры одной командой (не требует локально установленного Go или Python):
 
-        User: ID, Name, Email, Interests (Map/Vector весов string -> float64).
+### 1. Подготовка конфигурации
+```bash
+cp .env.example .env
+```
+*(При необходимости укажите ваш `TWOGIS_API_KEY` в файле `.env`)*
 
-        Place: ID, ExternalID, Name, Lat, Lon, Category, Rating, AvgDurationMin.
+### 2. Сборка и запуск контейнеров
+```bash
+docker compose up --build -d
+# или если используется docker-compose v1:
+docker-compose up --build -d
+```
 
-        Route: Итоговый маршрут, полилиния, список точек, MatchScore.
+### 3. Доступные сервисы и порты:
+| Сервис | Порт | Ссылка | Назначение |
+|---|---|---|---|
+| **Backend API** | `8080` | [http://localhost:8080](http://localhost:8080) | Основной REST API сервиса |
+| **Swagger UI** | `8080` | [http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html) | Интерактивное тестирование API |
+| **Healthcheck** | `8080` | [http://localhost:8080/health](http://localhost:8080/health) | Проверка работоспособности бэкенда |
+| **ML Ranker Service** | `8001` | [http://localhost:8001/health](http://localhost:8001/health) | Сервис оптимизации групповых маршрутов |
+| **Frontend Demo** | `3000` | [http://localhost:3000](http://localhost:3000) | Демонстрационная веб-страница |
+| **PostgreSQL + PostGIS** | `5432` | `localhost:5432` | База данных с пространственными индексами |
 
-    Создай начальную миграцию для Goose в migrations/:
+---
 
-        Включение расширения PostGIS: CREATE EXTENSION IF NOT EXISTS postgis;
+## 📖 Интерактивная документация API (Swagger UI)
 
-        Таблица users (с JSONB полем interests).
+Полная русифицированная интерактивная документация со схемами и возможностью выполнения запросов доступна по адресу:
+👉 **[http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html)**
 
-        Таблица places с пространственной колонкой geom GEOMETRY(Point, 4326) и GiST-индексом.
+### Основные эндпоинты:
+- `POST /api/v1/users` — Создание нового пользователя с вектором интересов (`coffee`, `art`, `parks`, `food`, `history` и др.).
+- `GET /api/v1/users/{id}` — Получение профиля пользователя по его UUID.
+- `POST /api/v1/routes/build` — Построение персонализированного пешеходного маршрута для группы пользователей с учетом бюджета времени.
+- `GET /health` — Проверка статуса жизнеспособности сервера.
 
-        Таблица связей/друзей пользователей.
+---
 
-Stage 2: Repository Layer & Testcontainers
+## 💻 Локальная разработка
 
-    Реализуй методы в internal/repository/postgres/:
+Если вы хотите запускать бэкенд и сервисы локально на хосте:
 
-        GetUserByID, GetUsersByIDs (для друзей).
+### 1. Запуск только базы данных PostgreSQL / PostGIS
+```bash
+docker compose up -d postgres
+```
 
-        FindNearbyPlaces(lat, lon, radiusMeters, limit) с использованием ST_DWithin в PostGIS.
+### 2. Накатывание миграций
+Перейдите в директорию бэкенда и примените SQL-миграции:
+```bash
+cd backend
+make migrate-up
+```
 
-    Обязательно: Напиши интеграционные тесты для репозиториев с использованием testcontainers/testcontainers-go (образ postgis/postgis:16-3.4). Тесты должны поднимать контейнер, накатывать миграции через Goose и проверять выборку.
+### 3. Наполнение базы офлайн-местами (OSM Seeder)
+Для гарантии бесперебойной работы бэкенда офлайн (даже при отсутствии ключа 2GIS) запустите сидер OpenStreetMap:
+```bash
+make seed-osm
+```
+Утилита загрузит до 500 актуальных точек притяжения (кафе, музеи, парки, достопримечательности) через Overpass API и сохранит их в PostGIS с пространственным индексом.
 
-Stage 3: External Clients (ML, Routing, 2GIS)
+### 4. Запуск ML-сервиса
+```bash
+python3 ml-service/main.py
+```
 
-    Places Provider (internal/clients/places/):
+### 5. Запуск Go Backend API
+```bash
+cd backend
+go run cmd/api/main.go
+```
 
-        Изучи файлы в docs/context/. Если параметров или структуры ответа недостаточно — запроси у меня.
+### 6. Запуск тестов
+```bash
+cd backend
+make test
+```
 
-        Реализуй интерфейс PlacesProvider.
+### 7. Обновление Swagger спецификации
+```bash
+cd backend
+make swagger
+```
 
-        Напиши адаптер под 2GIS Places API с учетом лимитов (RPS, таймауты).
+---
 
-        Реализуй In-Memory LRU/TTL кэш перед вызовом API для предотвращения исчерпания демо-квоты.
+## 🧪 Примеры API-запросов (cURL)
 
-        Реализуй отказоустойчивую обертку: если 2GIS отдает 429 или падает по таймауту, запрос идет в локальный PlaceRepository (OSM fallback).
+### 1. Создание профиля пользователя (Алиса — любитель кофе и парков)
+```bash
+curl -s -X POST http://localhost:8080/api/v1/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Алиса",
+    "interests": {
+      "coffee": 0.95,
+      "parks": 0.8,
+      "art": 0.3
+    }
+  }' | jq .
+```
+*Пример ответа:*
+```json
+{
+  "id": "e2a4a350-58c9-4b68-8094-1a3eb2591601",
+  "name": "Алиса",
+  "interests": {
+    "art": 0.3,
+    "coffee": 0.95,
+    "parks": 0.8
+  },
+  "created_at": "2026-09-26T21:00:00Z"
+}
+```
 
-    ML Client (internal/clients/ml/):
+### 2. Создание второго пользователя (Борис — любитель искусства и музеев)
+```bash
+curl -s -X POST http://localhost:8080/api/v1/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Борис",
+    "interests": {
+      "art": 0.9,
+      "history": 0.85,
+      "coffee": 0.4
+    }
+  }' | jq .
+```
 
-        HTTP-клиент к сервису ранжирования (POST /api/v1/optimize).
+### 3. Построение группового маршрута в Москве (Красная площадь → Парк Зарядье)
+Бюджет времени: **120 минут**.
+```bash
+curl -s -X POST http://localhost:8080/api/v1/routes/build \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_ids": [
+      "e2a4a350-58c9-4b68-8094-1a3eb2591601",
+      "f3b5b461-69da-4c79-9105-2b4fc3602702"
+    ],
+    "budget_minutes": 120,
+    "start": {
+      "lat": 55.751244,
+      "lon": 37.618423
+    },
+    "finish": {
+      "lat": 55.758900,
+      "lon": 37.629500
+    }
+  }' | jq .
+```
 
-        Полноценная обработка таймаутов (http.Client с таймаутом не более 5с).
+### 4. Построение группового маршрута в Челябинске (Кировка → Набережная реки Миасс)
+Бюджет времени: **90 минут**.
+```bash
+curl -s -X POST http://localhost:8080/api/v1/routes/build \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_ids": [
+      "e2a4a350-58c9-4b68-8094-1a3eb2591601"
+    ],
+    "budget_minutes": 90,
+    "start": {
+      "lat": 55.159902,
+      "lon": 61.402554
+    },
+    "finish": {
+      "lat": 55.168541,
+      "lon": 61.398412
+    }
+  }' | jq .
+```
 
-    OSRM Client (internal/clients/routing/):
+---
 
-        Вызов /route/v1/foot/{coords}?overview=full&geometries=geojson для получения полилинии и точного pedestrian duration.
+## 🗺️ Визуализация маршрута в GeoJSON
 
-    Покрой все клиенты модульными тестами с моками HTTP (httptest.Server). Не делай боевых запросов!
+Ответ эндпоинта `POST /api/v1/routes/build` возвращает поле `geojson` со стандартным форматом **RFC 7946 GeoJSON FeatureCollection**:
+- `LineString`: реальная пешеходная геометрия OSRM с подробными координатами шагов.
+- `Point` объекты: точки старта, остановок в заведениях (с названием, категорией, порядком и временем) и точки финиша.
 
-Stage 4: Service / Usecase Layer
+### Как визуализировать на карте:
+1. Скопируйте содержимое объекта `"geojson"` из ответа API.
+2. Откройте онлайн-карту **[geojson.io](https://geojson.io/)**.
+3. Вставьте скопированный JSON во вкладку **JSON** в правой части экрана.
+4. Карта мгновенно отрендерит линию прогулки, маркеры остановок и всплывающие подсказки с описанием мест.
 
-    Реализуй RouteService:
+---
 
-        Принимает: точку старта, точку финиша, лимит времени в минутах, ID пользователей.
-
-        Запрашивает профили участников через UserRepository.
-
-        Запрашивает кандидатов заведений через PlacesProvider (2GIS / Fallback).
-
-        Формирует payload и отправляет в MLClient.
-
-        На базе отобранных точек запрашивает геометрию у RoutingClient.
-
-        Агрегирует итоговый результат.
-
-    Покрой сервис unit-тестами с моками интерфейсов (100% изоляция от сети и БД).
-
-Stage 5: Transport Layer (REST API & Swagger)
-
-    Реализуй хэндлеры Chi в internal/transport/rest/v1/:
-
-        POST /api/v1/routes/build — основной эндпоинт построения маршрута.
-
-        GET /api/v1/users/{id} — получение профиля.
-
-        POST /api/v1/users — создание/обновление пользователя и его интересов.
-
-    Добавь аннотации Swaggo (@Summary, @Tags, @Param, @Success, @Failure) для всех хэндлеров и DTO.
-
-    Подключи Swagger UI на маршрут /swagger/*.
-
-    Напиши табличные тесты для HTTP-хэндлеров (httptest.ResponseRecorder).
-
-Stage 6: Dependency Injection (uber-go/fx) & Entrypoint
-
-    В internal/app/app.go настрой модули fx.Provide:
-
-        Config, Logger
-
-        Postgres DB Pool, Goose Migrator Runner
-
-        Repositories
-
-        HTTP Clients (Places, ML, Routing)
-
-        Services
-
-        Handlers, Router, HTTP Server Lifecycle (fx.Hook для graceful shutdown)
-
-    В cmd/api/main.go оставь только запуск fx.New(app.Module).Run().
-
-📋 Quality Constraints & Coding Rules
-
-    No Global State: Никаких глобальных переменных для БД или конфигов. Всё прокидывается через конструкторы Fx.
-
-    Context Propagation: Каждый запрос к БД, внешнему API и хэндлеру обязан принимать и пробрасывать context.Context.
-
-    Linter Clean: Код должен соответствовать golangci-lint (обработка всех ошибок, никаких необработанных err).
-
-    Graceful Degradation: Падение внешнего API 2GIS не должно ломать сервис — срабатывает fallback.
+## 👥 Команда разработки
+Проект спроектирован и реализован для хакатона. MIT License.
