@@ -4,5 +4,5 @@ bin/
 *.out
 *.log
 .env
-docs
+backend/.env
 mock_ml.py
