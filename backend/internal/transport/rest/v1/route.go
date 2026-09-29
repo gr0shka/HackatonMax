@@ -56,6 +56,9 @@ func (h *Handler) BuildRoute(w http.ResponseWriter, r *http.Request) {
 			Lon: req.Finish.Lon,
 		},
 		BudgetMinutes: req.BudgetMinutes,
+		BudgetRub: req.BudgetRub,
+		TransportMode: req.TransportMode,
+		ArrivalBufferMin: req.ArrivalBufferMin,
 		UserIDs:       userUUIDs,
 	}
 
@@ -106,6 +109,11 @@ func (h *Handler) BuildRoute(w http.ResponseWriter, r *http.Request) {
 		MatchScore:          route.MatchScore,
 		MatchReasons:        route.MatchReasons,
 		TotalDurationMin:    route.TotalDurationMin,
+		TravelDurationMin:   route.TravelDurationMin,
+		VisitDurationMin:    route.VisitDurationMin,
+		ArrivalBufferMin:    route.ArrivalBufferMin,
+		EstimatedCostRub:    route.EstimatedCostRub,
+		TransportMode:       route.TransportMode,
 		TotalDistanceMeters: route.TotalDistanceMeters,
 		GeoJSON:             route.ToGeoJSON(),
 		Waypoints:           waypoints,

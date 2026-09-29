@@ -61,8 +61,8 @@ type osrmRouteResponse struct {
 	} `json:"routes"`
 }
 
-// BuildFootRoute requests pedestrian route geometry and duration across ordered points.
-func (c *OSRMClient) BuildFootRoute(ctx context.Context, points []entity.LatLon) (*RouteResult, error) {
+// BuildRoute requests route geometry and adapts travel estimates for the selected mode.
+func (c *OSRMClient) BuildRoute(ctx context.Context, points []entity.LatLon, mode string) (*RouteResult, error) {
 	if len(points) < 2 {
 		return nil, fmt.Errorf("at least 2 points are required to calculate a route, got %d", len(points))
 	}
@@ -74,7 +74,11 @@ func (c *OSRMClient) BuildFootRoute(ctx context.Context, points []entity.LatLon)
 	}
 
 	coordsString := strings.Join(coordParts, ";")
-	endpoint := fmt.Sprintf("%s/route/v1/foot/%s?overview=full&geometries=geojson", c.baseURL, coordsString)
+	baseURL, profile := c.baseURL, "foot"
+	if mode == "car" {
+		baseURL, profile = "https://router.project-osrm.org", "driving"
+	}
+	endpoint := fmt.Sprintf("%s/route/v1/%s/%s?overview=full&geometries=geojson", baseURL, profile, coordsString)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -106,10 +110,16 @@ func (c *OSRMClient) BuildFootRoute(ctx context.Context, points []entity.LatLon)
 	}
 
 	route := data.Routes[0]
+	durationFactor := 1.0
+	if mode == "metro" {
+		durationFactor = 0.48
+	} else if mode == "bus" {
+		durationFactor = 0.68
+	}
 	legs := make([]Leg, len(route.Legs))
 	for i, l := range route.Legs {
 		legs[i] = Leg{
-			DurationSec:    l.Duration,
+			DurationSec:    l.Duration * durationFactor,
 			DistanceMeters: l.Distance,
 		}
 	}
@@ -121,8 +131,13 @@ func (c *OSRMClient) BuildFootRoute(ctx context.Context, points []entity.LatLon)
 
 	return &RouteResult{
 		Geometry:            geom,
-		TotalDurationSec:    route.Duration,
+		TotalDurationSec:    route.Duration * durationFactor,
 		TotalDistanceMeters: route.Distance,
 		Legs:                legs,
 	}, nil
+}
+
+// BuildFootRoute is kept for compatibility with existing integrations.
+func (c *OSRMClient) BuildFootRoute(ctx context.Context, points []entity.LatLon) (*RouteResult, error) {
+	return c.BuildRoute(ctx, points, "walking")
 }

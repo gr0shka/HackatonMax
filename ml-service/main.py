@@ -32,11 +32,22 @@ def merged_interests(profiles):
 def local_optimize(body):
     """Greedy fallback balancing interests, rating and route detour."""
     budget = max(15, int(body.get("budget_minutes", 120)))
+    money_budget = max(0, int(body.get("budget_rub", 0)))
     candidates = body.get("candidate_places", [])
     interests = merged_interests(body.get("user_profiles", []))
     current = body.get("start", {"lat": 0, "lon": 0})
     finish = body.get("finish", current)
-    remaining, selected, spent = list(candidates), [], 0
+    remaining, selected, spent, money_spent = list(candidates), [], 0, 0
+
+    def estimated_cost(place):
+        category = str(place.get("category", "")).lower()
+        if any(word in category for word in ("restaurant", "food", "кафе", "ресторан", "coffee", "кофе")):
+            return 700
+        if any(word in category for word in ("museum", "art", "музей", "театр", "gallery")):
+            return 450
+        if any(word in category for word in ("souvenir", "сувенир", "shop", "магазин")):
+            return 600
+        return 0
     while remaining and len(selected) < 5:
         def score(place):
             category = str(place.get("category", "")).lower()
@@ -45,18 +56,22 @@ def local_optimize(body):
             return affinity * 4 + float(place.get("rating", 0)) * 0.35 - detour * 0.5
         place = max(remaining, key=score)
         duration = max(15, min(90, int(place.get("avg_duration_min") or 30)))
+        place_cost = estimated_cost(place)
         walking = round((distance_km(current, place) + distance_km(place, finish)) / 4.5 * 60)
-        if spent + duration + walking > budget:
+        if spent + duration + walking > budget or (money_budget and money_spent + place_cost > money_budget):
             remaining.remove(place)
             continue
-        selected.append({"place_id": str(place["id"]), "order": len(selected) + 1, "allocated_time_min": duration})
+        selected.append({"place_id": str(place["id"]), "order": len(selected) + 1, "allocated_time_min": duration, "estimated_cost_rub": place_cost})
         spent += duration + round(distance_km(current, place) / 4.5 * 60)
+        money_spent += place_cost
         current = place
         remaining.remove(place)
     if not selected and candidates:
         place = max(candidates, key=lambda item: float(item.get("rating", 0)))
         duration = max(10, min(max(10, budget - 10), int(place.get("avg_duration_min") or 20)))
-        selected.append({"place_id": str(place["id"]), "order": 1, "allocated_time_min": duration})
+        place_cost = estimated_cost(place)
+        if not money_budget or place_cost <= money_budget:
+            selected.append({"place_id": str(place["id"]), "order": 1, "allocated_time_min": duration, "estimated_cost_rub": place_cost})
         spent = duration
     return {"selected_places": selected, "total_estimated_minutes": min(budget, spent + 10), "match_score": round(min(0.92, 0.62 + 0.06 * len(selected)), 2), "match_reasons": ["Места подобраны по интересам и рейтингу", "Порядок точек уменьшает лишние переходы", "Маршрут укладывается в заданное время"], "optimizer": "local-fallback"}
 
@@ -67,7 +82,7 @@ def openrouter_optimize(body):
         raise RuntimeError("OPENROUTER_API_KEY is not configured")
     system = ("Ты оптимизатор городских маршрутов. Выбирай только place_id из входного списка. "
               "Учитывай интересы группы, рейтинг, время, близость и разнообразие. Маршрут должен укладываться в budget_minutes. "
-              "Верни только JSON: selected_places[{place_id,order,allocated_time_min}], total_estimated_minutes, match_score (0..1), match_reasons (2-4 строки на русском).")
+              "Учитывай budget_rub и transport_mode. Верни только JSON: selected_places[{place_id,order,allocated_time_min,estimated_cost_rub}], total_estimated_minutes, match_score (0..1), match_reasons (2-4 строки на русском).")
     payload = {"model": OPENROUTER_MODEL, "temperature": 0.2, "response_format": {"type": "json_object"}, "messages": [{"role": "system", "content": system}, {"role": "user", "content": json.dumps(body, ensure_ascii=False)}]}
     request = Request(f"{OPENROUTER_URL}/chat/completions", data=json.dumps(payload).encode(), headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "HTTP-Referer": os.getenv("OPENROUTER_SITE_URL", "http://localhost:3000"), "X-Title": os.getenv("OPENROUTER_APP_NAME", "Go Route Planner")}, method="POST")
     with urlopen(request, timeout=OPENROUTER_TIMEOUT) as response:
@@ -77,16 +92,18 @@ def openrouter_optimize(body):
 
 def validate_result(result, body):
     allowed = {str(place["id"]): place for place in body.get("candidate_places", [])}
-    budget, valid, used, seen = max(15, int(body.get("budget_minutes", 120))), [], 0, set()
+    budget, money_budget = max(15, int(body.get("budget_minutes", 120))), max(0, int(body.get("budget_rub", 0)))
+    valid, used, money_used, seen = [], 0, 0, set()
     for item in result.get("selected_places", []):
         place_id = str(item.get("place_id", ""))
         if place_id not in allowed or place_id in seen:
             continue
         duration = max(10, min(90, int(item.get("allocated_time_min") or 20)))
-        if used + duration > budget:
+        cost = max(0, int(item.get("estimated_cost_rub") or 0))
+        if used + duration > budget or (money_budget and money_used + cost > money_budget):
             continue
-        seen.add(place_id); used += duration
-        valid.append({"place_id": place_id, "order": len(valid) + 1, "allocated_time_min": duration})
+        seen.add(place_id); used += duration; money_used += cost
+        valid.append({"place_id": place_id, "order": len(valid) + 1, "allocated_time_min": duration, "estimated_cost_rub": cost})
         if len(valid) == 5: break
     if not valid: raise ValueError("model returned no valid candidates")
     reasons = [str(x)[:180] for x in result.get("match_reasons", []) if str(x).strip()][:4]

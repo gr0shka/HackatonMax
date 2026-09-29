@@ -43,6 +43,19 @@ func (s *routeService) BuildRoute(ctx context.Context, params BuildRouteParams) 
 	if params.BudgetMinutes <= 0 {
 		return nil, fmt.Errorf("%w: budget minutes must be positive", ErrInvalidRouteReq)
 	}
+	if params.TransportMode == "" {
+		params.TransportMode = "walking"
+	}
+	validTransport := map[string]bool{"walking": true, "metro": true, "bus": true, "car": true}
+	if !validTransport[params.TransportMode] {
+		return nil, fmt.Errorf("%w: unsupported transport mode", ErrInvalidRouteReq)
+	}
+	if params.ArrivalBufferMin < 0 {
+		params.ArrivalBufferMin = 0
+	}
+	if params.ArrivalBufferMin >= params.BudgetMinutes {
+		return nil, fmt.Errorf("%w: arrival buffer must be smaller than the time budget", ErrInvalidRouteReq)
+	}
 	if len(params.UserIDs) == 0 {
 		return nil, fmt.Errorf("%w: at least one user id is required", ErrInvalidRouteReq)
 	}
@@ -109,7 +122,10 @@ func (s *routeService) BuildRoute(ctx context.Context, params BuildRouteParams) 
 	}
 
 	mlReq := &ml.OptimizeRequest{
-		BudgetMinutes: params.BudgetMinutes,
+		BudgetMinutes: params.BudgetMinutes - params.ArrivalBufferMin,
+		BudgetRub: params.BudgetRub,
+		TransportMode: params.TransportMode,
+		ArrivalBufferMin: params.ArrivalBufferMin,
 		Start: ml.PointDTO{
 			Lat: params.Start.Lat,
 			Lon: params.Start.Lon,
@@ -138,6 +154,7 @@ func (s *routeService) BuildRoute(ctx context.Context, params BuildRouteParams) 
 	routeWaypoints = append(routeWaypoints, params.Start)
 
 	totalAllocatedPlaceMin := 0
+	totalEstimatedCostRub := 0
 	for _, item := range mlResp.SelectedPlaces {
 		if place, ok := candidateMap[item.PlaceID]; ok {
 			selectedOrderedPlaces = append(selectedOrderedPlaces, struct {
@@ -151,12 +168,13 @@ func (s *routeService) BuildRoute(ctx context.Context, params BuildRouteParams) 
 			})
 			routeWaypoints = append(routeWaypoints, place.Point())
 			totalAllocatedPlaceMin += item.AllocatedTimeMin
+			totalEstimatedCostRub += item.EstimatedCostRub
 		}
 	}
 	routeWaypoints = append(routeWaypoints, params.Finish)
 
 	// 6. Request actual walking geometry and duration from OSRM
-	routingRes, err := s.routingClient.BuildFootRoute(ctx, routeWaypoints)
+	routingRes, err := s.routingClient.BuildRoute(ctx, routeWaypoints, params.TransportMode)
 	if err != nil {
 		return nil, fmt.Errorf("pedestrian routing calculation failed: %w", err)
 	}
@@ -210,6 +228,18 @@ func (s *routeService) BuildRoute(ctx context.Context, params BuildRouteParams) 
 	})
 
 	totalWalkingMin := int(math.Round(routingRes.TotalDurationSec / 60.0))
+	switch params.TransportMode {
+	case "metro":
+		totalEstimatedCostRub += 65
+	case "bus":
+		totalEstimatedCostRub += 50
+	case "car":
+		transportCost := int(math.Round(routingRes.TotalDistanceMeters / 1000.0 * 25.0))
+		if transportCost < 150 {
+			transportCost = 150
+		}
+		totalEstimatedCostRub += transportCost
+	}
 	finalRoute := &entity.Route{
 		ID:                  uuid.New(),
 		Geometry:            routingRes.Geometry,
@@ -217,6 +247,11 @@ func (s *routeService) BuildRoute(ctx context.Context, params BuildRouteParams) 
 		MatchScore:          mlResp.MatchScore,
 		MatchReasons:        mlResp.MatchReasons,
 		TotalDurationMin:    totalWalkingMin + totalAllocatedPlaceMin,
+		TravelDurationMin:   totalWalkingMin,
+		VisitDurationMin:    totalAllocatedPlaceMin,
+		ArrivalBufferMin:    params.ArrivalBufferMin,
+		EstimatedCostRub:    totalEstimatedCostRub,
+		TransportMode:       params.TransportMode,
 		TotalDistanceMeters: routingRes.TotalDistanceMeters,
 		CreatedAt:           time.Now(),
 	}

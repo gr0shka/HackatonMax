@@ -54,6 +54,9 @@ type BuildRouteParams struct {
 	Start         entity.LatLon `json:"start"`
 	Finish        entity.LatLon `json:"finish"`
 	BudgetMinutes int           `json:"budget_minutes"`
+	BudgetRub     int           `json:"budget_rub"`
+	TransportMode string        `json:"transport_mode"`
+	ArrivalBufferMin int        `json:"arrival_buffer_min"`
 	UserIDs       []uuid.UUID   `json:"user_ids"`
 }
 

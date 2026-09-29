@@ -44,8 +44,8 @@ type mockRoutingClient struct {
 	mock.Mock
 }
 
-func (m *mockRoutingClient) BuildFootRoute(ctx context.Context, points []entity.LatLon) (*routing.RouteResult, error) {
-	args := m.Called(ctx, points)
+func (m *mockRoutingClient) BuildRoute(ctx context.Context, points []entity.LatLon, mode string) (*routing.RouteResult, error) {
+	args := m.Called(ctx, points, mode)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -142,7 +142,7 @@ func TestRouteService_BuildRoute_Success(t *testing.T) {
 			{DurationSec: 700, DistanceMeters: 900},
 		},
 	}
-	routingClient.On("BuildFootRoute", mock.Anything, mock.AnythingOfType("[]entity.LatLon")).Return(routingRes, nil)
+	routingClient.On("BuildRoute", mock.Anything, mock.AnythingOfType("[]entity.LatLon"), "walking").Return(routingRes, nil)
 
 	params := service.BuildRouteParams{
 		Start:         start,

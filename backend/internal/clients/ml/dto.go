@@ -26,6 +26,9 @@ type CandidatePlaceDTO struct {
 // OptimizeRequest defines the payload sent to the ML ranking service.
 type OptimizeRequest struct {
 	BudgetMinutes   int                 `json:"budget_minutes"`
+	BudgetRub       int                 `json:"budget_rub"`
+	TransportMode   string              `json:"transport_mode"`
+	ArrivalBufferMin int                `json:"arrival_buffer_min"`
 	Start           PointDTO            `json:"start"`
 	Finish          PointDTO            `json:"finish"`
 	UserProfiles    []UserProfileDTO    `json:"user_profiles"`
@@ -37,6 +40,7 @@ type SelectedPlaceItem struct {
 	PlaceID          string `json:"place_id"`
 	Order            int    `json:"order"`
 	AllocatedTimeMin int    `json:"allocated_time_min"`
+	EstimatedCostRub int    `json:"estimated_cost_rub"`
 }
 
 // OptimizeResponse defines the response returned by the ML ranking service.

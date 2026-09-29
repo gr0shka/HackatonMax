@@ -53,6 +53,11 @@ type Route struct {
 	MatchScore          float64          `json:"match_score"`
 	MatchReasons        []string         `json:"match_reasons,omitempty"`
 	TotalDurationMin    int              `json:"total_duration_min"`
+	TravelDurationMin   int              `json:"travel_duration_min"`
+	VisitDurationMin    int              `json:"visit_duration_min"`
+	ArrivalBufferMin    int              `json:"arrival_buffer_min"`
+	EstimatedCostRub    int              `json:"estimated_cost_rub"`
+	TransportMode       string           `json:"transport_mode"`
 	TotalDistanceMeters float64          `json:"total_distance_meters"`
 	CreatedAt           time.Time        `json:"created_at"`
 }
@@ -64,6 +69,11 @@ func (r Route) ToGeoJSON() GeoJSONFeature {
 		"match_score":           r.MatchScore,
 		"match_reasons":         r.MatchReasons,
 		"total_duration_min":    r.TotalDurationMin,
+		"travel_duration_min":   r.TravelDurationMin,
+		"visit_duration_min":    r.VisitDurationMin,
+		"arrival_buffer_min":    r.ArrivalBufferMin,
+		"estimated_cost_rub":    r.EstimatedCostRub,
+		"transport_mode":        r.TransportMode,
 		"total_distance_meters": r.TotalDistanceMeters,
 		"points_count":          len(r.Points),
 		"waypoints":             r.Points,

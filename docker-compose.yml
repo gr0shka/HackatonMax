@@ -67,6 +67,8 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      YANDEX_MAPS_API_KEY: ${YANDEX_MAPS_API_KEY:-}
     ports:
       - "3000:80"
 

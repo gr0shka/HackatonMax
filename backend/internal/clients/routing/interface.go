@@ -22,5 +22,5 @@ type RouteResult struct {
 
 // RoutingClient defines the contract for computing pedestrian routes and geometry.
 type RoutingClient interface {
-	BuildFootRoute(ctx context.Context, points []entity.LatLon) (*RouteResult, error)
+	BuildRoute(ctx context.Context, points []entity.LatLon, mode string) (*RouteResult, error)
 }

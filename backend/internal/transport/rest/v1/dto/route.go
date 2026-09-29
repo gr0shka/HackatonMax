@@ -14,6 +14,12 @@ type PointDTO struct {
 type BuildRouteRequest struct {
 	// BudgetMinutes - доступный лимит времени на маршрут в минутах
 	BudgetMinutes int `json:"budget_minutes" example:"120" binding:"required"`
+	// BudgetRub - максимальный бюджет на посещение мест, 0 означает без ограничения
+	BudgetRub int `json:"budget_rub" example:"1000"`
+	// TransportMode - walking, metro, bus или car
+	TransportMode string `json:"transport_mode" example:"walking"`
+	// ArrivalBufferMin - обязательный запас до дедлайна
+	ArrivalBufferMin int `json:"arrival_buffer_min" example:"10"`
 	// UserIDs - список UUID участников группы
 	UserIDs []string `json:"user_ids" example:"a949a4f7-5a00-4178-b740-4ce831159fbb,484d5806-4d9a-444e-8a51-2f92034e8376" binding:"required"`
 	// Start - географические координаты точки старта
@@ -52,6 +58,11 @@ type BuildRouteResponse struct {
 	MatchReasons []string `json:"match_reasons" example:"Высокое совпадение по кофе (0.85),Оба участника любят прогулочные зоны"`
 	// TotalDurationMin - общее время маршрута (время переходов + время нахождения в локациях) в минутах
 	TotalDurationMin int `json:"total_duration_min" example:"85"`
+	TravelDurationMin int `json:"travel_duration_min" example:"30"`
+	VisitDurationMin int `json:"visit_duration_min" example:"45"`
+	ArrivalBufferMin int `json:"arrival_buffer_min" example:"10"`
+	EstimatedCostRub int `json:"estimated_cost_rub" example:"900"`
+	TransportMode string `json:"transport_mode" example:"walking"`
 	// TotalDistanceMeters - суммарная длина пешеходного трека в метрах
 	TotalDistanceMeters float64 `json:"total_distance_meters" example:"2200.0"`
 	// GeoJSON - стандартный GeoJSON Feature (LineString с массивом координат [lon, lat] для отрисовки линии на карте)
