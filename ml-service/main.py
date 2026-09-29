@@ -106,7 +106,10 @@ def validate_result(result, body):
         valid.append({"place_id": place_id, "order": len(valid) + 1, "allocated_time_min": duration, "estimated_cost_rub": cost})
         if len(valid) == 5: break
     if not valid: raise ValueError("model returned no valid candidates")
-    reasons = [str(x)[:180] for x in result.get("match_reasons", []) if str(x).strip()][:4]
+    raw_reasons = result.get("match_reasons", [])
+    if isinstance(raw_reasons, str):
+        raw_reasons = [raw_reasons]
+    reasons = [str(x)[:180] for x in raw_reasons if str(x).strip()][:4]
     return {"selected_places": valid, "total_estimated_minutes": min(budget, max(used, int(result.get("total_estimated_minutes") or used))), "match_score": max(0.0, min(1.0, float(result.get("match_score", .75)))), "match_reasons": reasons or ["Маршрут оптимизирован с учетом интересов группы"], "optimizer": "openrouter", "model": OPENROUTER_MODEL}
 
 

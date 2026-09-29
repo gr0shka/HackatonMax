@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,6 +18,8 @@ import (
 
 	"HackatonMax/internal/entity"
 )
+
+var numericPlaceNamePattern = regexp.MustCompile(`^[\d\s/\\.,№#-]+$`)
 
 // TwoGisConfig contains configuration for 2GIS Places API adapter.
 type TwoGisConfig struct {
@@ -187,6 +191,10 @@ func (c *TwoGisClient) FindPlaces(ctx context.Context, lat, lon float64, radiusM
 
 	places := make([]entity.Place, 0, len(data.Result.Items))
 	for _, item := range data.Result.Items {
+		placeName := strings.TrimSpace(item.Name)
+		if placeName == "" || numericPlaceNamePattern.MatchString(placeName) {
+			continue
+		}
 		itemLat := lat
 		itemLon := lon
 		if item.Point != nil {
@@ -207,7 +215,7 @@ func (c *TwoGisClient) FindPlaces(ctx context.Context, lat, lon float64, radiusM
 		place := entity.Place{
 			ID:             uuid.New(),
 			ExternalID:     item.ID,
-			Name:           item.Name,
+			Name:           placeName,
 			Address:        item.AddressName,
 			Category:       category,
 			Rating:         rating,
