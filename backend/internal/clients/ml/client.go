@@ -23,7 +23,7 @@ type Client struct {
 	httpClient *http.Client
 }
 
-// NewClient creates a new ML service HTTP client with timeout limited to at most 5 seconds.
+// NewClient creates a new ML service HTTP client with a bounded timeout.
 func NewClient(cfg Config) *Client {
 	baseURL := strings.TrimRight(cfg.BaseURL, "/")
 	if baseURL == "" {
@@ -31,8 +31,8 @@ func NewClient(cfg Config) *Client {
 	}
 
 	timeout := cfg.Timeout
-	if timeout <= 0 || timeout > 5*time.Second {
-		timeout = 5 * time.Second
+	if timeout <= 0 || timeout > 9*time.Second {
+		timeout = 8 * time.Second
 	}
 
 	return &Client{

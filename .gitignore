@@ -3,6 +3,8 @@
 bin/
 *.out
 *.log
+__pycache__/
+*.pyc
 .env
 backend/.env
 mock_ml.py

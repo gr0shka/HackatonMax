@@ -54,7 +54,7 @@ type MLConfig struct {
 
 // OSRMConfig specifies OSRM routing engine settings.
 type OSRMConfig struct {
-	BaseURL string        `env:"OSRM_BASE_URL" env-default:"http://router.project-osrm.org"`
+	BaseURL string        `env:"OSRM_BASE_URL" env-default:"https://routing.openstreetmap.de/routed-foot"`
 	Timeout time.Duration `env:"OSRM_TIMEOUT" env-default:"5s"`
 }
 
@@ -91,7 +91,7 @@ func LoadConfig() (*Config, error) {
 		cfg.ML.BaseURL = mlURL
 	}
 
-	if osrmURL := os.Getenv("OSRM_URL"); osrmURL != "" && cfg.OSRM.BaseURL == "http://router.project-osrm.org" {
+	if osrmURL := os.Getenv("OSRM_URL"); osrmURL != "" && cfg.OSRM.BaseURL == "https://routing.openstreetmap.de/routed-foot" {
 		cfg.OSRM.BaseURL = osrmURL
 	}
 

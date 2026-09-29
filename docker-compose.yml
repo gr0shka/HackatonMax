@@ -23,6 +23,12 @@ services:
       dockerfile: Dockerfile
     container_name: route_optimizer_ml
     restart: unless-stopped
+    environment:
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
+      OPENROUTER_TIMEOUT: ${OPENROUTER_TIMEOUT:-6.5}
+      OPENROUTER_SITE_URL: ${OPENROUTER_SITE_URL:-http://localhost:3000}
+      OPENROUTER_APP_NAME: ${OPENROUTER_APP_NAME:-Go Route Planner}
     ports:
       - "8001:8001"
 
@@ -46,8 +52,9 @@ services:
       TWOGIS_API_KEY: ${TWOGIS_API_KEY:-}
       ML_BASE_URL: http://ml-service:8001
       ML_SERVICE_URL: http://ml-service:8001
-      OSRM_BASE_URL: https://router.project-osrm.org
-      OSRM_URL: https://router.project-osrm.org
+      ML_TIMEOUT: 8s
+      OSRM_BASE_URL: https://routing.openstreetmap.de/routed-foot
+      OSRM_URL: https://routing.openstreetmap.de/routed-foot
       LOG_LEVEL: info
     ports:
       - "8080:8080"

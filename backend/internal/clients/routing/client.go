@@ -28,7 +28,7 @@ type OSRMClient struct {
 func NewOSRMClient(cfg OSRMConfig) *OSRMClient {
 	baseURL := cfg.BaseURL
 	if baseURL == "" {
-		baseURL = "http://router.project-osrm.org"
+		baseURL = "https://routing.openstreetmap.de/routed-foot"
 	}
 
 	timeout := cfg.HTTPTimeout
