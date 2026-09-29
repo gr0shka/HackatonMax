@@ -1,4 +1,4 @@
-const API='/api/v1',UFA=[54.7351,55.9587],state={start:null,finish:null,picking:'start',markers:{},route:null,mode:'walking'};
+const API='/api/v1',UFA=[54.7351,55.9587],DEFAULT_START={lat:54.73348,lon:55.949477},DEFAULT_FINISH={lat:54.729533,lon:55.956415},state={start:{...DEFAULT_START},finish:{...DEFAULT_FINISH},picking:null,markers:{},route:null,mode:'walking'};
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],form=$('#routeForm'),message=$('#formMessage');
 let mapAdapter;
 new MutationObserver(()=>$('#mapHint').classList.toggle('hidden',!$('#routeSummary').classList.contains('hidden'))).observe($('#routeSummary'),{attributes:true,attributeFilter:['class']});
@@ -26,9 +26,45 @@ function minutesBetween(a,b){const x=a.split(':').map(Number),y=b.split(':').map
 function setMarker(kind,p,label){state[kind]={lat:p.lat,lon:p.lon};mapAdapter.marker(kind,p,label);state.picking=kind==='start'?'finish':null;$('#mapHint').textContent=state.picking?'Теперь укажите финиш':'Точки выбраны — нажмите Go!'}
 $$('[data-pick]').forEach(b=>b.addEventListener('click',()=>{state.picking=b.dataset.pick;$('#mapHint').textContent=state.picking==='start'?'Укажите старт на карте':'Укажите финиш на карте'}));
 
-async function geocode(q){if(mapAdapter?.provider==='yandex'){const r=await ymaps.geocode(q,{results:1}),x=r.geoObjects.get(0);if(!x)throw Error(`Адрес не найден: ${q}`);const [lat,lon]=x.geometry.getCoordinates();return{lat,lon}}const r=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=ru&q=${encodeURIComponent(q)}`,{headers:{Accept:'application/json'}}),[x]=await r.json();if(!r.ok||!x)throw Error(`Адрес не найден: ${q}`);return{lat:Number(x.lat),lon:Number(x.lon)}}
-async function reverseGeocode(p){if(mapAdapter.provider==='yandex'){const r=await ymaps.geocode([p.lat,p.lon]),x=r.geoObjects.get(0);return x?.getAddressLine()||`${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`}const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${p.lat}&lon=${p.lon}`),d=await r.json();return d.display_name?.split(',').slice(0,3).join(', ')||`${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`}
-async function api(path,options={}){const r=await fetch(`${API}${path}`,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}}),d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.details||d.error||`Ошибка API ${r.status}`);return d}
+async function geocode(q){
+  if(!q||!q.trim())return DEFAULT_START;
+  if(mapAdapter?.provider==='yandex'&&window.ymaps?.geocode){
+    try{const r=await ymaps.geocode(q,{results:1}),x=r.geoObjects.get(0);if(x){const [lat,lon]=x.geometry.getCoordinates();return{lat,lon}}}catch(e){console.warn('Yandex geocode error',e)}
+  }
+  try{
+    const ctrl=new AbortController(),t=setTimeout(()=>ctrl.abort(),3000);
+    const r=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=ru&q=${encodeURIComponent(q)}`,{headers:{Accept:'application/json'},signal:ctrl.signal});
+    clearTimeout(t);
+    if(r.ok){const data=await r.json();if(data?.[0])return{lat:Number(data[0].lat),lon:Number(data[0].lon)}}
+  }catch(e){console.warn('Nominatim error',e)}
+  if(q.includes('Достоевского'))return DEFAULT_START;
+  if(q.includes('Цюрупы'))return DEFAULT_FINISH;
+  return{lat:UFA[0],lon:UFA[1]};
+}
+async function reverseGeocode(p){
+  if(mapAdapter?.provider==='yandex'&&window.ymaps?.geocode){
+    try{const r=await ymaps.geocode([p.lat,p.lon]),x=r.geoObjects.get(0);if(x?.getAddressLine())return x.getAddressLine()}catch(e){console.warn('Yandex reverse error',e)}
+  }
+  try{
+    const ctrl=new AbortController(),t=setTimeout(()=>ctrl.abort(),3000);
+    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${p.lat}&lon=${p.lon}`,{signal:ctrl.signal});
+    clearTimeout(t);
+    if(r.ok){const d=await r.json();if(d?.display_name)return d.display_name.split(',').slice(0,3).join(', ')}
+  }catch(e){console.warn('Nominatim reverse error',e)}
+  return `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`;
+}
+async function api(path,options={}){
+  try{
+    const r=await fetch(`${API}${path}`,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}}),d=await r.json().catch(()=>({}));
+    if(!r.ok)throw Error(d.details||d.error||`Ошибка API ${r.status}`);
+    return d;
+  }catch(err){
+    if(err.name==='TypeError'||err.message?.includes('NetworkError')){
+      throw Error('Ошибка соединения с сервером. Пожалуйста, повторите запрос.');
+    }
+    throw err;
+  }
+}
 function interests(){return Object.fromEntries($$('#interestPicker input').map(input=>[input.dataset.interest,Number(input.value)/10]))}
 function preferenceValues(){return Object.fromEntries($$('#interestPicker input').map(input=>[input.dataset.interest,Number(input.value)]))}
 function anonymousEmail(){let email=localStorage.getItem('routeGuestEmail');if(!email){const token=crypto.randomUUID?.()||`${Date.now()}-${Math.random().toString(16).slice(2)}`;email=`guest-${token}@go.local`;localStorage.setItem('routeGuestEmail',email)}return email}
