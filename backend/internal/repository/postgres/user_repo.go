@@ -102,7 +102,11 @@ func (r *UserRepository) CreateUser(ctx context.Context, user *entity.User) erro
 	query := `
 		INSERT INTO users (id, name, email, interests, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, NOW(), NOW())
-		RETURNING created_at, updated_at;
+		ON CONFLICT (email) DO UPDATE SET
+			name = EXCLUDED.name,
+			interests = EXCLUDED.interests,
+			updated_at = NOW()
+		RETURNING id, created_at, updated_at;
 	`
 
 	err := r.pool.QueryRow(ctx, query,
@@ -110,7 +114,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, user *entity.User) erro
 		user.Name,
 		user.Email,
 		user.Interests,
-	).Scan(&user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to insert user: %w", err)
 	}
