@@ -40,6 +40,9 @@ def local_optimize(body):
     remaining, selected, spent, money_spent = list(candidates), [], 0, 0
 
     def estimated_cost(place):
+        supplied_cost = max(0, int(place.get("estimated_cost_rub") or 0))
+        if supplied_cost:
+            return supplied_cost
         category = str(place.get("category", "")).lower()
         if any(word in category for word in ("restaurant", "food", "кафе", "ресторан", "coffee", "кофе")):
             return 700
@@ -47,7 +50,9 @@ def local_optimize(body):
             return 450
         if any(word in category for word in ("souvenir", "сувенир", "shop", "магазин")):
             return 600
-        return 0
+        if any(word in category for word in ("park", "парк", "сквер")):
+            return 0
+        return 250
     while remaining and len(selected) < 5:
         def score(place):
             category = str(place.get("category", "")).lower()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +18,26 @@ type routeService struct {
 	placesProvider PlacesProvider
 	mlClient       MLClient
 	routingClient  RoutingClient
+}
+
+func estimatePlaceCostRub(category string) int {
+	category = strings.ToLower(category)
+	switch {
+	case strings.Contains(category, "park"), strings.Contains(category, "парк"), strings.Contains(category, "сквер"):
+		return 0
+	case strings.Contains(category, "coffee"), strings.Contains(category, "кофе"), strings.Contains(category, "кофейн"):
+		return 350
+	case strings.Contains(category, "food"), strings.Contains(category, "restaurant"), strings.Contains(category, "кафе"), strings.Contains(category, "ресторан"):
+		return 800
+	case strings.Contains(category, "museum"), strings.Contains(category, "gallery"), strings.Contains(category, "музей"), strings.Contains(category, "галере"):
+		return 450
+	case strings.Contains(category, "souvenir"), strings.Contains(category, "сувенир"), strings.Contains(category, "магазин"):
+		return 500
+	case strings.Contains(category, "attraction"), strings.Contains(category, "достопримеч"), strings.Contains(category, "здани"), strings.Contains(category, "architecture"):
+		return 200
+	default:
+		return 250
+	}
 }
 
 // NewRouteService creates a new RouteService orchestrator.
@@ -109,6 +130,7 @@ func (s *routeService) BuildRoute(ctx context.Context, params BuildRouteParams) 
 			Lon:            c.Lon,
 			Rating:         c.Rating,
 			AvgDurationMin: c.AvgDurationMin,
+			EstimatedCostRub: estimatePlaceCostRub(c.Category),
 		}
 	}
 
@@ -168,7 +190,11 @@ func (s *routeService) BuildRoute(ctx context.Context, params BuildRouteParams) 
 			})
 			routeWaypoints = append(routeWaypoints, place.Point())
 			totalAllocatedPlaceMin += item.AllocatedTimeMin
-			totalEstimatedCostRub += item.EstimatedCostRub
+			itemCost := item.EstimatedCostRub
+			if itemCost <= 0 {
+				itemCost = estimatePlaceCostRub(place.Category)
+			}
+			totalEstimatedCostRub += itemCost
 		}
 	}
 	routeWaypoints = append(routeWaypoints, params.Finish)

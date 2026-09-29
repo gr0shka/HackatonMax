@@ -21,6 +21,7 @@ type CandidatePlaceDTO struct {
 	Lon            float64 `json:"lon"`
 	Rating         float64 `json:"rating"`
 	AvgDurationMin int     `json:"avg_duration_min"`
+	EstimatedCostRub int   `json:"estimated_cost_rub"`
 }
 
 // OptimizeRequest defines the payload sent to the ML ranking service.

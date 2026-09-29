@@ -1,6 +1,7 @@
 const API='/api/v1',UFA=[54.7351,55.9587],state={start:null,finish:null,picking:'start',markers:{},route:null,mode:'walking'};
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],form=$('#routeForm'),message=$('#formMessage');
 let mapAdapter;
+new MutationObserver(()=>$('#mapHint').classList.toggle('hidden',!$('#routeSummary').classList.contains('hidden'))).observe($('#routeSummary'),{attributes:true,attributeFilter:['class']});
 window.showPlannerTab=tab=>{const preferences=tab==='preferences';$$('[data-tab]').forEach(x=>x.classList.toggle('active',x.dataset.tab===tab));$('#preferencesPanel').classList.toggle('hidden',!preferences);form.classList.toggle('hidden',preferences);$('#results').classList.add('hidden')};
 
 function leafletAdapter(){
