@@ -70,6 +70,7 @@ services:
     environment:
       YANDEX_MAPS_API_KEY: ${YANDEX_MAPS_API_KEY:-}
     ports:
+      - "80:80"
       - "3000:80"
 
 volumes:

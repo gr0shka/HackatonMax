@@ -1,0 +1,38 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            echo "==> Deploying updates..."
+            cd /root/HackatonMax
+            
+            # Pull latest changes from master
+            git fetch origin master
+            git reset --hard origin/master
+            
+            # Build and deploy gracefully
+            docker compose build ml-service frontend
+            docker compose build backend
+            docker compose up -d
+            
+            # Clean up build cache and old images to save disk space
+            docker builder prune -f
+            docker image prune -f
+            
+            echo "==> Deployment successful!"
+            docker compose ps
