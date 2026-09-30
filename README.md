@@ -77,46 +77,102 @@ OpenStreetMap. Форма поддерживает бюджет, запас до
 
 ---
 
-## 📂 Архитектура монорепозитория
+## 📂 Архитектура системы и структура монорепозитория
+
+### Диаграмма взаимодействия компонентов
+
+```mermaid
+flowchart TD
+    User["Пользователь (Браузер / Смартфон)"]
+    Cloudflare["Cloudflare Edge (HTTPS / SSL / DNS: cysp.ru)"]
+    
+    subgraph Host["VPS Сервер (Docker Compose)"]
+        Frontend["Frontend (Nginx Alpine :80)\n• SPA: Карта, фильтры, слайдеры интересов\n• Reverse Proxy: /api/, /swagger/, /health\n• Раздача: openapi.yaml, DATA-API.yaml"]
+        
+        Backend["Go Backend API (:8080)\n• Uber Fx DI, Chi Router\n• Оркестратор бизнес-сценариев\n• Кэширование и Rate-Limiting"]
+        
+        Postgres[("PostgreSQL 16 + PostGIS 3.4 (:5432)\n• База пользователей и профилей\n• Офлайн-каталог POI (SP-GIST геоиндексы)")]
+        
+        MLService["ML-сервис (:8001)\n• Python 3.11 Alpine\n• LLM-ранжирование (OpenRouter / gpt-4o-mini)\n• Встроенный Local Fallback Optimizer"]
+    end
+    
+    TwoGIS["2GIS Places API 3.0\n(Каталог заведений и рейтинг)"]
+    OSRM["OSRM Routing Engine\n(Пешеходный граф дорог)"]
+    OpenRouter["OpenRouter API\n(LLM gpt-4o-mini)"]
+    YandexMaps["Яндекс Карты / OSM Tiles\n(Картографическая подложка)"]
+
+    User -->|"HTTPS (443)"| Cloudflare
+    Cloudflare -->|"HTTP (80)"| Frontend
+    Frontend -->|"Проксирование /api/v1/"| Backend
+    Frontend -->|"Тайлы и геокодинг"| YandexMaps
+    
+    Backend -->|"SQL-запросы и геопоиск"| Postgres
+    Backend -->|"Запрос POI кандидатов"| TwoGIS
+    Backend -.->|"Fallback при лимитах 2GIS"| Postgres
+    Backend -->|"POST /api/v1/optimize"| MLService
+    Backend -->|"Расчет точного трека и расстояний"| OSRM
+    
+    MLService -->|"Промпт ранжирования POI"| OpenRouter
+    MLService -.->|"Автономный режим при сбоях LLM"| MLService
+```
+
+### Структура монорепозитория
 
 Репозиторий организован по принципу чистого разделения ответственности:
 
 ```text
 .
-├── backend/                   # Исходный код Go Backend API
+├── frontend/                          # Клиентское веб-приложение (SPA) и Nginx-шлюз
+│   ├── index.html                     # Адаптивный мобильный и десктопный UI (MAX-приложение)
+│   ├── app.js                         # Логика клиента: карты, геолокация, слайдеры интересов, API
+│   ├── styles.css                     # Современные адаптивные стили (шторка планировщика, темная тема)
+│   ├── config.js                      # Динамическая конфигурация ключей API карт
+│   ├── nginx.conf                     # Конфиг Nginx: маршрутизация, кэширование, CORS и proxy
+│   ├── docker-entrypoint-custom.sh    # Скрипт подстановки переменных окружения при старте
+│   ├── openapi.yaml                   # Публичная спецификация OpenAPI 3.0.3
+│   ├── openapi.json                   # Публичная спецификация OpenAPI 3.0 в формате JSON
+│   ├── DATA-API.yaml                  # Конфигурация для платформы оценки хакатона
+│   ├── test-data.json                 # Воспроизводимые тестовые данные для валидации
+│   └── Dockerfile                     # Образ на nginx:alpine (порт 80 / 3000)
+│
+├── ml-service/                        # Сервис машинного обучения и ранжирования (Python)
+│   ├── main.py                        # HTTP-сервер (порт 8001): POST /api/v1/optimize
+│   │                                  # • OpenRouter API (openai/gpt-4o-mini)
+│   │                                  # • Local Fallback Optimizer (жадный выбор по полезности)
+│   └── Dockerfile                     # Легковесный контейнер python:3.11-alpine
+│
+├── backend/                           # Высокопроизводительный бэкенд на Go
 │   ├── cmd/
-│   │   ├── api/               # Точка входа HTTP API (main.go, Fx Module)
-│   │   └── osm-importer/      # CLI утилита для офлайн-сидинга POI из OpenStreetMap
-│   ├── config/                # Чтение конфигурации через .env и переменные окружения
-│   ├── docs/                  # Сгенерированная OpenAPI/Swagger спецификация
+│   │   ├── api/                       # Точка входа HTTP API (main.go, Uber Fx Module)
+│   │   └── osm-importer/              # CLI-утилита для офлайн-сидинга POI из OpenStreetMap
+│   ├── config/                        # Чтение конфигурации через .env и переменные окружения
+│   ├── docs/                          # Swagger и OpenAPI спецификации (v2 и v3)
 │   ├── internal/
-│   │   ├── app/               # Сборка графа зависимостей Uber Fx и HTTP-сервера
-│   │   ├── clients/           # Внешние клиенты:
-│   │   │   ├── ml/            #   - HTTP-клиент к ML-сервису оптимизации
-│   │   │   ├── places/        #   - 2GIS Places API, кэш и Fallback к PostGIS
-│   │   │   └── routing/       #   - OSRM маршрутизатор (Foot Route)
-│   │   ├── entity/            # Доменные сущности (User, Place, Route, LatLon)
-│   │   ├── importer/osm/      # Логика сидера Overpass API -> PostGIS
-│   │   ├── repository/        # Доступ к PostgreSQL / PostGIS (UserRepo, PlaceRepo)
-│   │   ├── service/           # Бизнес-логика (RouteService, UserService)
-│   │   └── transport/rest/    # REST-хендлеры Chi и DTO (v1)
-│   ├── migrations/            # SQL-миграции Goose (структура БД и PostGIS)
-│   ├── Dockerfile             # Multi-stage Dockerfile бэкенда (non-root appuser)
-│   ├── Makefile               # Команды сборки, тестов, миграций и Swagger
-│   ├── go.mod                 # Go зависимости
-│   └── .env.example           # Пример переменных окружения бэкенда
+│   │   ├── app/                       # Сборка графа зависимостей Uber Fx и запуск HTTP-сервера
+│   │   ├── clients/                   # Внешние интеграции:
+│   │   │   ├── ml/                    #   - HTTP-клиент к микросервису ML-оптимизации
+│   │   │   ├── places/                #   - 2GIS Places API, in-memory LRU кэш, Fallback к PostGIS
+│   │   │   └── routing/               #   - OSRM маршрутизатор (пешеходный граф)
+│   │   ├── entity/                    # Доменные сущности (User, Place, Route, LatLon)
+│   │   ├── importer/osm/              # Сидер Overpass API -> PostGIS
+│   │   ├── repository/                # Доступ к PostgreSQL / PostGIS (UserRepo, PlaceRepo)
+│   │   ├── service/                   # Бизнес-логика (RouteService, UserService)
+│   │   └── transport/rest/            # REST-хендлеры Chi и DTO (v1)
+│   ├── migrations/                    # SQL-миграции Goose (структура БД и PostGIS)
+│   ├── Dockerfile                     # Multi-stage Dockerfile (компиляция Go + minimal Alpine)
+│   ├── Makefile                       # Команды сборки, тестов, миграций и генерации Swagger
+│   └── go.mod                         # Go зависимости
 │
-├── ml-service/                # Сервис машинного обучения (Python)
-│   ├── main.py                # HTTP-обработчик POST /api/v1/optimize
-│   └── Dockerfile             # Легковесный образ на python:3.11-alpine (порт 8001)
+├── .github/workflows/                 # CI/CD автоматизация
+│   └── deploy.yml                     # Автоматический деплой на прод-сервер по SSH при пуше в master
 │
-├── frontend/                  # Клиентский интерфейс / Демо-лендинг
-│   ├── index.html             # Веб-интерфейс с быстрыми ссылками и cURL примерами
-│   └── Dockerfile             # Образ на nginx:alpine (порт 3000)
-│
-├── docker-compose.yml         # Единая оркестрация (Postgres, Backend, ML, Frontend)
-├── .env.example               # Шаблон глобальных переменных окружения
-└── README.md                  # Документация проекта
+├── openapi.yaml                       # Спецификация OpenAPI 3.0.3 в корне проекта
+├── openapi.json                       # Спецификация OpenAPI 3.0.3 (JSON)
+├── DATA-API.yaml                      # Спецификация тестирования для платформы оценки хакатона
+├── test-data.json                     # Набор тестовых учетных записей и сценариев
+├── docker-compose.yml                 # Оркестрация стека (Postgres, Backend, ML, Frontend)
+├── .env.example                       # Шаблон конфигурационных переменных
+└── README.md                          # Полная документация проекта
 ```
 
 ---
