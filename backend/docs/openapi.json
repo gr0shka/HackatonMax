@@ -1,0 +1,617 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "API Оптимизации Туристических Маршрутов (Route Optimizer)",
+    "description": "Сервис построения персонализированных групповых пешеходных маршрутов с учетом пересечения интересов участников, бюджета времени, интеграцией геоданных (2GIS Places API / OpenStreetMap) и пешеходного графа OSRM.\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Команда разработки",
+      "email": "support@cysp.ru"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://cysp.ru",
+      "description": "Production Server (HTTPS)"
+    },
+    {
+      "url": "http://localhost:8080",
+      "description": "Local Development Server"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Проверка состояния сервиса",
+        "description": "Проверка доступности системы и подключения к БД.",
+        "operationId": "healthCheck",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "Сервис функционирует нормально",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "summary": "Проверка состояния API v1",
+        "description": "Проверка статуса сервиса API v1 и БД.",
+        "operationId": "healthCheckV1",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "Сервис функционирует нормально",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/": {
+      "post": {
+        "summary": "Создание или обновление профиля участника",
+        "description": "Регистрирует участника группы с вектором интересов (coffee, art, parks, food, sightseeing со значениями от 0.0 до 1.0).",
+        "operationId": "createUser",
+        "tags": [
+          "users"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrUpdateUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Профиль успешно создан или обновлен",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Невалидный JSON или некорректный email",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Внутренняя ошибка сервера",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/{id}": {
+      "get": {
+        "summary": "Получение профиля пользователя",
+        "description": "Возвращает данные профиля и вектор интересов по UUID пользователя.",
+        "operationId": "getUser",
+        "tags": [
+          "users"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "UUID пользователя",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "217336ee-96f8-491b-9a8e-1efb7df1ce65"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Профиль пользователя успешно найден",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный формат UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Пользователь не найден",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Внутренняя ошибка сервера",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/routes/build": {
+      "post": {
+        "summary": "Оптимизация и генерация группового маршрута",
+        "description": "Принимает список идентификаторов участников, лимит времени в минутах, а также географические координаты старта и финиша. Сервис находит кандидатов, передает их в алгоритм ML-мэтчинга и строит непрерывный пешеходный трек OSRM с таймингом каждой остановки.\n",
+        "operationId": "buildRoute",
+        "tags": [
+          "routes"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuildRouteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Оптимизированный пешеходный маршрут успешно построен",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildRouteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Невалидный JSON или некорректные координаты",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Не найдены кандидаты мест в заданной области или участник не найден",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Внутренняя ошибка сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "PointDTO": {
+        "type": "object",
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "properties": {
+          "lat": {
+            "type": "number",
+            "format": "double",
+            "description": "Географическая широта (latitude)",
+            "example": 54.73348
+          },
+          "lon": {
+            "type": "number",
+            "format": "double",
+            "description": "Географическая долгота (longitude)",
+            "example": 55.949477
+          }
+        }
+      },
+      "CreateOrUpdateUserRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "email"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Имя или никнейм пользователя",
+            "example": "Алиса"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Уникальный адрес электронной почты",
+            "example": "alice@example.com"
+          },
+          "interests": {
+            "type": "object",
+            "description": "Вектор интересов пользователя (значения от 0.0 до 1.0)",
+            "additionalProperties": {
+              "type": "number",
+              "format": "double"
+            },
+            "example": {
+              "coffee": 0.9,
+              "parks": 0.8,
+              "art": 0.5,
+              "sightseeing": 0.7
+            }
+          }
+        }
+      },
+      "UserResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "email",
+          "interests",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Уникальный идентификатор пользователя (UUID)",
+            "example": "217336ee-96f8-491b-9a8e-1efb7df1ce65"
+          },
+          "name": {
+            "type": "string",
+            "description": "Имя пользователя",
+            "example": "Тест"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Адрес электронной почты",
+            "example": "test@example.com"
+          },
+          "interests": {
+            "type": "object",
+            "description": "Вектор интересов пользователя",
+            "additionalProperties": {
+              "type": "number",
+              "format": "double"
+            },
+            "example": {
+              "sightseeing": 0.8
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-29T22:37:20Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-29T22:37:20Z"
+          }
+        }
+      },
+      "BuildRouteRequest": {
+        "type": "object",
+        "required": [
+          "user_ids",
+          "budget_minutes",
+          "start",
+          "finish"
+        ],
+        "properties": {
+          "user_ids": {
+            "type": "array",
+            "description": "Список UUID участников группы",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": [
+              "217336ee-96f8-491b-9a8e-1efb7df1ce65"
+            ]
+          },
+          "budget_minutes": {
+            "type": "integer",
+            "description": "Доступный лимит времени на маршрут в минутах",
+            "example": 120
+          },
+          "budget_rub": {
+            "type": "integer",
+            "description": "Доступный бюджет в рублях",
+            "example": 1000
+          },
+          "arrival_buffer_min": {
+            "type": "integer",
+            "description": "Запас времени до дедлайна в минутах",
+            "example": 10
+          },
+          "transport_mode": {
+            "type": "string",
+            "description": "Способ передвижения (walking, metro, bus, car)",
+            "example": "walking"
+          },
+          "start": {
+            "$ref": "#/components/schemas/PointDTO"
+          },
+          "finish": {
+            "$ref": "#/components/schemas/PointDTO"
+          }
+        }
+      },
+      "RoutePointResponse": {
+        "type": "object",
+        "required": [
+          "order",
+          "type",
+          "location",
+          "duration_min"
+        ],
+        "properties": {
+          "order": {
+            "type": "integer",
+            "description": "Порядковый номер точки на маршруте (начиная с 0)",
+            "example": 1
+          },
+          "type": {
+            "type": "string",
+            "description": "Тип точки: start (старт), place (локация), finish (финиш)",
+            "example": "place"
+          },
+          "place_name": {
+            "type": "string",
+            "description": "Название заведения или достопримечательности",
+            "example": "Кофейня Зерно"
+          },
+          "category": {
+            "type": "string",
+            "description": "Категория места (coffee, food, parks, art, sightseeing)",
+            "example": "coffee"
+          },
+          "duration_min": {
+            "type": "integer",
+            "description": "Время нахождения в локации (минуты)",
+            "example": 25
+          },
+          "distance_from_prev_meters": {
+            "type": "number",
+            "format": "double",
+            "description": "Пешеходное расстояние от предыдущей точки в метрах",
+            "example": 450
+          },
+          "duration_from_prev_min": {
+            "type": "number",
+            "format": "double",
+            "description": "Время перехода от предыдущей точки в минутах",
+            "example": 6.5
+          },
+          "location": {
+            "$ref": "#/components/schemas/PointDTO"
+          }
+        }
+      },
+      "BuildRouteResponse": {
+        "type": "object",
+        "required": [
+          "route_id",
+          "total_duration_min",
+          "total_distance_meters",
+          "geojson",
+          "waypoints"
+        ],
+        "properties": {
+          "route_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Уникальный UUID сгенерированного маршрута",
+            "example": "a42497d0-acae-4a86-a3ab-fcbfa0980470"
+          },
+          "match_score": {
+            "type": "number",
+            "format": "double",
+            "description": "Оценка удовлетворенности интересов группы (от 0.0 до 1.0)",
+            "example": 0.89
+          },
+          "match_reasons": {
+            "type": "array",
+            "description": "Список текстовых объяснений, почему выбраны эти локации",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "Места подобраны по интересам и рейтингу",
+              "Порядок точек уменьшает лишние переходы",
+              "Маршрут укладывается в заданное время"
+            ]
+          },
+          "total_duration_min": {
+            "type": "integer",
+            "description": "Общее расчетное время маршрута в минутах",
+            "example": 106
+          },
+          "travel_duration_min": {
+            "type": "integer",
+            "description": "Суммарное время в пути между точками",
+            "example": 16
+          },
+          "visit_duration_min": {
+            "type": "integer",
+            "description": "Суммарное время нахождения в локациях",
+            "example": 90
+          },
+          "arrival_buffer_min": {
+            "type": "integer",
+            "description": "Запас времени до дедлайна",
+            "example": 10
+          },
+          "estimated_cost_rub": {
+            "type": "integer",
+            "description": "Примерная стоимость посещений в рублях",
+            "example": 450
+          },
+          "transport_mode": {
+            "type": "string",
+            "example": "walking"
+          },
+          "total_distance_meters": {
+            "type": "number",
+            "format": "double",
+            "description": "Суммарная длина трека в метрах",
+            "example": 1233.2
+          },
+          "geojson": {
+            "$ref": "#/components/schemas/GeoJSONFeature"
+          },
+          "waypoints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoutePointResponse"
+            }
+          }
+        }
+      },
+      "GeoJSONFeature": {
+        "type": "object",
+        "required": [
+          "type",
+          "geometry"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "Feature"
+          },
+          "geometry": {
+            "$ref": "#/components/schemas/GeoJSONGeometry"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "GeoJSONGeometry": {
+        "type": "object",
+        "required": [
+          "type",
+          "coordinates"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "LineString"
+          },
+          "coordinates": {
+            "type": "array",
+            "description": "Массив пар координат [долгота, широта] пешеходной линии",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "example": [
+                55.958395,
+                54.734975
+              ]
+            }
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Краткое описание ошибки",
+            "example": "Невалидные входные данные"
+          },
+          "details": {
+            "type": "string",
+            "description": "Детальное описание причины ошибки",
+            "example": "Координаты старта находятся за пределами допустимого диапазона"
+          }
+        }
+      }
+    }
+  }
+}

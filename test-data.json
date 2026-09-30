@@ -1,0 +1,79 @@
+{
+  "api_base_url": "https://cysp.ru",
+  "test_accounts": [
+    {
+      "id": "217336ee-96f8-491b-9a8e-1efb7df1ce65",
+      "role": "user",
+      "name": "Тест",
+      "email": "test@example.com",
+      "interests": {
+        "sightseeing": 0.8,
+        "coffee": 0.9,
+        "parks": 0.7
+      }
+    },
+    {
+      "role": "user_create_candidate",
+      "name": "Алиса",
+      "email": "alice-hackaton@example.com",
+      "interests": {
+        "coffee": 0.95,
+        "parks": 0.8,
+        "art": 0.4
+      }
+    }
+  ],
+  "test_scenarios": [
+    {
+      "scenario": "build_standard_walking_route_ufa",
+      "description": "Построение пешеходного маршрута в центре Уфы на 2 часа с посещением кофе и достопримечательностей",
+      "endpoint": "/api/v1/routes/build",
+      "method": "POST",
+      "request": {
+        "user_ids": [
+          "217336ee-96f8-491b-9a8e-1efb7df1ce65"
+        ],
+        "budget_minutes": 120,
+        "budget_rub": 1000,
+        "arrival_buffer_min": 10,
+        "transport_mode": "walking",
+        "start": {
+          "lat": 54.73348,
+          "lon": 55.949477
+        },
+        "finish": {
+          "lat": 54.729533,
+          "lon": 55.956415
+        }
+      },
+      "expected": {
+        "status_code": 200,
+        "min_waypoints": 3,
+        "max_duration_min": 120,
+        "require_geojson": true
+      }
+    },
+    {
+      "scenario": "service_healthcheck",
+      "description": "Проверка доступности сервиса и подключения к PostGIS",
+      "endpoint": "/health",
+      "method": "GET",
+      "expected": {
+        "status_code": 200,
+        "response_body": {
+          "status": "ok"
+        }
+      }
+    },
+    {
+      "scenario": "get_user_profile",
+      "description": "Получение существующего пользователя по UUID",
+      "endpoint": "/api/v1/users/217336ee-96f8-491b-9a8e-1efb7df1ce65",
+      "method": "GET",
+      "expected": {
+        "status_code": 200,
+        "user_id": "217336ee-96f8-491b-9a8e-1efb7df1ce65"
+      }
+    }
+  ]
+}

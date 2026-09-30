@@ -1,0 +1,201 @@
+# ==============================================================================
+# DATA-API.yaml - Конфигурационный файл для автоматической проверки API решения
+# ==============================================================================
+
+# 1. Версия конфигурации схемы проверки
+version: "1.0.0"
+
+# 2. Наименование решения или идентификатор команды
+solution_name: "Платформа Оптимизации Туристических Маршрутов (Go! — умные прогулки)"
+team_id: "HackatonMax-Team"
+
+# 3. Базовый адрес API (единый HTTPS-адрес, относительно которого формируются запросы)
+base_url: "https://cysp.ru"
+
+# 3.1. Тестовые учетные записи для проверки обязательных сценариев
+test_accounts:
+  - role: "user"
+    user_id: "217336ee-96f8-491b-9a8e-1efb7df1ce65"
+    name: "Тест"
+    email: "test@example.com"
+    description: "Стандартный пользователь / участник группы с заполненным вектором интересов"
+
+# 4. Перечень обязательных проверок функциональности
+checks:
+  # --------------------------------------------------------------------------
+  # Проверка 1: Проверка доступности сервиса (Healthcheck)
+  # --------------------------------------------------------------------------
+  - id: "check_health"
+    name: "Healthcheck сервиса и базы данных"
+    description: "Проверка работоспособности бэкенда и доступности PostGIS"
+    method: "GET"                          # 5. HTTP-метод
+    path: "/health"                        # 5. Относительный путь эндпоинта
+    role: "guest"                          # 7. Роль пользователя
+    headers:                               # 6. Заголовки запроса
+      Accept: "application/json"
+    expected_status_codes:                 # 8. Ожидаемые статус-коды
+      - 200
+    expected_response:                     # 9. Ожидаемый формат ответа
+      content_type: "application/json"
+      required_fields:
+        - "status"
+      schema:
+        type: "object"
+        properties:
+          status:
+            type: "string"
+            enum: ["ok"]
+
+  # --------------------------------------------------------------------------
+  # Проверка 2: Получение профиля тестового пользователя по ID
+  # --------------------------------------------------------------------------
+  - id: "check_get_user"
+    name: "Получение профиля участника по ID"
+    description: "Запрос данных зарегистрированного участника и вектора его интересов"
+    method: "GET"                          # 5. HTTP-метод
+    path: "/api/v1/users/217336ee-96f8-491b-9a8e-1efb7df1ce65" # 5. Относительный путь
+    role: "user"                           # 7. Роль пользователя
+    parameters:                            # 6. Path-параметры
+      path:
+        id: "217336ee-96f8-491b-9a8e-1efb7df1ce65"
+    headers:
+      Accept: "application/json"
+    expected_status_codes:                 # 8. Ожидаемые статус-коды
+      - 200
+    expected_response:                     # 9. Ожидаемый формат ответа
+      content_type: "application/json"
+      required_fields:
+        - "id"
+        - "name"
+        - "email"
+        - "interests"
+      schema:
+        type: "object"
+        properties:
+          id:
+            type: "string"
+            format: "uuid"
+          name:
+            type: "string"
+          email:
+            type: "string"
+          interests:
+            type: "object"
+
+  # --------------------------------------------------------------------------
+  # Проверка 3: Создание / регистрация нового пользователя
+  # --------------------------------------------------------------------------
+  - id: "check_create_user"
+    name: "Создание нового пользователя с вектором интересов"
+    description: "Регистрация участника с весами предпочтений (кофе, парки, культура)"
+    method: "POST"                         # 5. HTTP-метод
+    path: "/api/v1/users/"                 # 5. Относительный путь
+    role: "user"                           # 7. Роль пользователя
+    headers:                               # 6. Заголовки
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body:                                  # 6. Тело запроса
+      name: "Алиса"
+      email: "alice-automated-check@example.com"
+      interests:
+        coffee: 0.95
+        parks: 0.8
+        art: 0.4
+        sightseeing: 0.7
+    expected_status_codes:                 # 8. Ожидаемые статус-коды
+      - 200
+    expected_response:                     # 9. Ожидаемый формат ответа
+      content_type: "application/json"
+      required_fields:
+        - "id"
+        - "name"
+        - "email"
+        - "interests"
+      schema:
+        type: "object"
+        properties:
+          id:
+            type: "string"
+            format: "uuid"
+          name:
+            type: "string"
+          email:
+            type: "string"
+          interests:
+            type: "object"
+
+  # --------------------------------------------------------------------------
+  # Проверка 4: Построение персонализированного маршрута
+  # --------------------------------------------------------------------------
+  - id: "check_build_route"
+    name: "Оптимизация и построение группового маршрута"
+    description: "Основной сценарий решения: поиск POI по 2GIS/OSM, ML-ранжирование и трек OSRM"
+    method: "POST"                         # 5. HTTP-метод
+    path: "/api/v1/routes/build"           # 5. Относительный путь
+    role: "user"                           # 7. Роль пользователя
+    headers:                               # 6. Заголовки
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body:                                  # 6. Тело запроса с параметрами
+      user_ids:
+        - "217336ee-96f8-491b-9a8e-1efb7df1ce65"
+      budget_minutes: 120
+      budget_rub: 1000
+      arrival_buffer_min: 10
+      transport_mode: "walking"
+      start:
+        lat: 54.73348
+        lon: 55.949477
+      finish:
+        lat: 54.729533
+        lon: 55.956415
+    expected_status_codes:                 # 8. Ожидаемые статус-коды
+      - 200
+    expected_response:                     # 9. Ожидаемый формат ответа
+      content_type: "application/json"
+      required_fields:
+        - "route_id"
+        - "total_duration_min"
+        - "total_distance_meters"
+        - "geojson"
+        - "waypoints"
+      schema:
+        type: "object"
+        properties:
+          route_id:
+            type: "string"
+            format: "uuid"
+          total_duration_min:
+            type: "integer"
+          total_distance_meters:
+            type: "number"
+          geojson:
+            type: "object"
+            required: ["type", "geometry"]
+            properties:
+              type:
+                type: "string"
+                enum: ["Feature"]
+              geometry:
+                type: "object"
+                required: ["type", "coordinates"]
+                properties:
+                  type:
+                    type: "string"
+                    enum: ["LineString"]
+                  coordinates:
+                    type: "array"
+          waypoints:
+            type: "array"
+            items:
+              type: "object"
+              required: ["order", "type", "location"]
+              properties:
+                order:
+                  type: "integer"
+                type:
+                  type: "string"
+                place_name:
+                  type: "string"
+                duration_min:
+                  type: "integer"
