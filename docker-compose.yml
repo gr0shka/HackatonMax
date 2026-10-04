@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-route_optimizer}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -30,7 +30,7 @@ services:
       OPENROUTER_SITE_URL: ${OPENROUTER_SITE_URL:-http://localhost:3000}
       OPENROUTER_APP_NAME: ${OPENROUTER_APP_NAME:-Go Route Planner}
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
 
   backend:
     build:
@@ -57,7 +57,7 @@ services:
       OSRM_URL: https://routing.openstreetmap.de/routed-foot
       LOG_LEVEL: info
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
 
   frontend:
     build:
@@ -71,7 +71,7 @@ services:
       YANDEX_MAPS_API_KEY: ${YANDEX_MAPS_API_KEY:-}
     ports:
       - "80:80"
-      - "3000:80"
+      - "127.0.0.1:3000:80"
 
 volumes:
   pgdata:
