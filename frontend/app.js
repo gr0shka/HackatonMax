@@ -27,8 +27,14 @@ function leafletAdapter(){
         map.fitBounds([[a.lat,a.lon],[b.lat,b.lon]],{padding:[60,60]});
       }
     },
+    clearRoute(){
+      if(state.route){
+        state.route.remove();
+        state.route=null;
+      }
+    },
     draw(feature,points){
-      if(state.route)state.route.remove();
+      this.clearRoute();
       state.route=L.geoJSON(feature,{style:{color:'#3c2c29',weight:6,opacity:.9,lineCap:'round'}}).addTo(map);
       points.filter(p=>p.type==='place').forEach(p=>L.circleMarker([p.location.lat,p.location.lon],{radius:12,color:'#fff',weight:4,fillColor:'#ff625f',fillOpacity:1}).addTo(state.route).bindPopup(`<strong>${esc(p.place_name)}</strong><br>${esc(p.category)}<br>${p.duration_min} мин.`));
       map.fitBounds(state.route.getBounds(),{padding:[45,45]});
@@ -62,12 +68,19 @@ async function yandexAdapter(key){
         map.setBounds([[Math.min(a.lat,b.lat),Math.min(a.lon,b.lon)],[Math.max(a.lat,b.lat),Math.max(a.lon,b.lon)]],{checkZoomRange:true,zoomMargin:45});
       }
     },
+    clearRoute(){
+      if(state.route){
+        map.geoObjects.remove(state.route);
+        state.route=null;
+      }
+    },
     draw(feature,points){
-      if(state.route)map.geoObjects.remove(state.route);
+      this.clearRoute();
       const modes={walking:'pedestrian',metro:'masstransit',bus:'masstransit',car:'auto'},referencePoints=points.map(p=>[p.location.lat,p.location.lon]);
       if(ymaps.multiRouter&&referencePoints.length>1){
-        state.route=new ymaps.multiRouter.MultiRoute({referencePoints,params:{routingMode:modes[state.mode]||'pedestrian',results:1}},{boundsAutoApply:true,routeActiveStrokeColor:'#3c2c29',routeActiveStrokeWidth:6});
+        state.route=new ymaps.multiRouter.MultiRoute({referencePoints,params:{routingMode:modes[state.mode]||'pedestrian',results:1}},{boundsAutoApply:false,routeActiveStrokeColor:'#3c2c29',routeActiveStrokeWidth:6});
         map.geoObjects.add(state.route);
+        map.setBounds([[Math.min(...referencePoints.map(p=>p[0])),Math.min(...referencePoints.map(p=>p[1]))],[Math.max(...referencePoints.map(p=>p[0])),Math.max(...referencePoints.map(p=>p[1]))]],{checkZoomRange:true,zoomMargin:45});
         return;
       }
       state.route=new ymaps.GeoObject({geometry:{type:'LineString',coordinates:feature.geometry.coordinates.map(([lon,lat])=>[lat,lon])}},{strokeColor:'#3c2c29',strokeWidth:6,strokeOpacity:.9});
@@ -135,12 +148,20 @@ $$('[data-pick]').forEach(b=>b.addEventListener('click',()=>{
 async function handleAddressInput(kind){
   const input=$(`#${kind}Input`);
   const val=input.value.trim();
-  if(!val||val===state[`${kind}Address`])return;
+  if(!val)return;
   message.textContent='Ищем адрес…';
   try{
     const p=await geocode(val);
     setMarker(kind,p,kind==='start'?'Старт':'Финиш');
     state[`${kind}Address`]=val;
+
+    // If user changed start city and finish is still old Ufa default, auto-sync finish to start location
+    if(kind==='start'&&$('#finishInput').value.includes('Цюрупы')&&!val.includes('Уфа')){
+      $('#finishInput').value=val;
+      setMarker('finish',p,'Финиш');
+      state.finishAddress=val;
+    }
+
     if(state.start&&state.finish){
       mapAdapter.fit(state.start,state.finish);
     }else{
@@ -188,11 +209,11 @@ async function geocode(q){
     }
   }
 
-  // 3. Fallbacks for standard demo addresses
+  // 3. Fallbacks for standard demo addresses only
   if(query.includes('Достоевского'))return DEFAULT_START;
   if(query.includes('Цюрупы'))return DEFAULT_FINISH;
 
-  return DEFAULT_START;
+  throw new Error(`Адрес не найден: ${query}`);
 }
 
 async function reverseGeocode(p){
@@ -293,27 +314,21 @@ function loadPreferences(){
 
 async function ensurePoints(){
   const startVal=$('#startInput').value.trim();
-  const finishVal=$('#finishInput').value.trim();
-  const jobs=[];
+  let finishVal=$('#finishInput').value.trim();
+  if(!startVal)throw new Error('Пожалуйста, укажите точку старта');
+  if(!finishVal)finishVal=startVal;
 
-  if(startVal&&startVal!==state.startAddress){
-    jobs.push(geocode(startVal).then(p=>{
-      setMarker('start',p,'Старт');
-      state.startAddress=startVal;
-    }));
-  }
-  if(finishVal&&finishVal!==state.finishAddress){
-    jobs.push(geocode(finishVal).then(p=>{
-      setMarker('finish',p,'Финиш');
-      state.finishAddress=finishVal;
-    }));
-  }
+  const [startPt,finishPt]=await Promise.all([
+    geocode(startVal),
+    geocode(finishVal)
+  ]);
 
-  await Promise.all(jobs);
+  setMarker('start',startPt,'Старт');
+  state.startAddress=startVal;
+  setMarker('finish',finishPt,'Финиш');
+  state.finishAddress=finishVal;
 
-  if(state.start&&state.finish){
-    mapAdapter.fit(state.start,state.finish);
-  }
+  mapAdapter.fit(startPt,finishPt);
 }
 
 function esc(v){
@@ -362,13 +377,18 @@ form.addEventListener('submit',async e=>{
     render(route);
   }catch(err){
     console.error(err);
-    message.textContent=err.message.includes('no places')?'Места не найдены. Добавьте ключ 2GIS или выберите другие точки.':err.message;
+    message.textContent=err.message.includes('no places')||err.message.includes('no candidate')?'Места не найдены. Попробуйте выбрать другие точки или расширить время.':err.message;
   }finally{
     b.disabled=false;
   }
 });
 
-$('#editButton').addEventListener('click',()=>{$('#results').classList.add('hidden');form.classList.remove('hidden')});
+$('#editButton').addEventListener('click',()=>{
+  $('#results').classList.add('hidden');
+  form.classList.remove('hidden');
+  mapAdapter.clearRoute?.();
+});
+
 $('#togglePlanner').addEventListener('click',()=>$('#planner').classList.toggle('collapsed'));
 
 $$('#interestPicker input').forEach(input=>input.addEventListener('input',()=>{input.closest('label').querySelector('output').value=input.value}));

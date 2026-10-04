@@ -95,20 +95,27 @@ func (s *routeService) BuildRoute(ctx context.Context, params BuildRouteParams) 
 	midLon := (params.Start.Lon + params.Finish.Lon) / 2.0
 	directDist := params.Start.DistanceMeters(params.Finish)
 
-	// Search radius is based on distance with a minimum of 1500m
-	searchRadius := math.Max(1500.0, directDist*0.75)
+	// Search radius is based on distance with a minimum of 1500m and maximum 5000m (15000m for car)
+	maxRadius := 5000.0
+	if params.TransportMode == "car" {
+		maxRadius = 15000.0
+	}
+	searchRadius := math.Max(1500.0, math.Min(maxRadius, directDist*0.75))
 
-	candidates, err := s.placesProvider.FindPlaces(ctx, midLat, midLon, searchRadius, "", 50)
-	if err != nil {
-		return nil, fmt.Errorf("failed to discover candidate places: %w", err)
+	var candidates []entity.Place
+
+	// If points are far apart (> 25 km, e.g. different cities), discover places around the start location
+	if directDist > 25000.0 {
+		candidates, err = s.placesProvider.FindPlaces(ctx, params.Start.Lat, params.Start.Lon, searchRadius, "", 50)
+	} else {
+		candidates, err = s.placesProvider.FindPlaces(ctx, midLat, midLon, searchRadius, "", 50)
+		if err == nil && len(candidates) == 0 {
+			candidates, err = s.placesProvider.FindPlaces(ctx, params.Start.Lat, params.Start.Lon, searchRadius, "", 50)
+		}
 	}
 
-	// Fallback to start point search if midpoint returned no candidates
-	if len(candidates) == 0 {
-		candidates, err = s.placesProvider.FindPlaces(ctx, params.Start.Lat, params.Start.Lon, searchRadius, "", 50)
-		if err != nil {
-			return nil, fmt.Errorf("failed to search places around start point: %w", err)
-		}
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover candidate places: %w", err)
 	}
 
 	if len(candidates) == 0 {
